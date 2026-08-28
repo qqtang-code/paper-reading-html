@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>论文精读 · 论文标题</title>
+<style>
+  /* ===== 图文配合精读页样式(paper-reading-html skill)===== */
+  :root{
+    --bg:#f6f8fb; --card:#ffffff; --ink:#1b2432; --muted:#5c6675;
+    --accent:#2f5bd9; --accent-soft:#e8edfb; --teal:#0d8a6d; --teal-soft:#e3f4ee;
+    --border:#dde3ec; --th-bg:#eef1f7; --code-bg:#f3f5f9;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0; padding:0; background:var(--bg); color:var(--ink);
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+       line-height:1.85; font-size:16px}
+  .wrap{max-width:1180px; margin:0 auto; padding:0 28px}
+
+  header.hero{background:linear-gradient(135deg,#1f2c52 0%,#2f5bd9 60%,#3f7de0 100%);
+              color:#fff; padding:60px 0 52px; margin:0}
+  header.hero .kicker{font-size:13px; letter-spacing:.18em; text-transform:uppercase; opacity:.85; font-weight:600}
+  header.hero h1{font-size:33px; line-height:1.35; margin:14px 0 10px; font-weight:800}
+  header.hero .subtitle{font-size:17px; opacity:.92; max-width:900px}
+  header.hero .meta{margin-top:22px; font-size:13.5px; opacity:.9; display:flex; flex-wrap:wrap; gap:8px 22px}
+  header.hero .meta a{color:#cfe0ff; text-decoration:none}
+  .pill{display:inline-block; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.28);
+        padding:2px 12px; border-radius:999px; font-size:12.5px; margin:0 6px 6px 0}
+
+  .toc{background:var(--card); border:1px solid var(--border); border-radius:12px;
+       padding:22px 28px; margin:36px auto; max-width:900px}
+  .toc ol{margin:0; padding-left:22px; columns:2; column-gap:40px}
+  .toc li{margin:4px 0; font-size:14.5px}
+  .toc a{color:var(--accent); text-decoration:none}
+
+  section{margin:56px 0}
+  h2.sec{font-size:26px; font-weight:800; margin:0 0 6px; padding-bottom:10px; border-bottom:3px solid var(--accent); display:inline-block}
+  .sec-no{font-size:13px; color:var(--accent); font-weight:700; letter-spacing:.14em; text-transform:uppercase; margin-bottom:4px}
+  h3{font-size:19px; margin:32px 0 10px; font-weight:700}
+  h4{font-size:16.5px; margin:22px 0 8px; font-weight:700}
+  p{margin:10px 0}
+  .lead{font-size:17px; color:#38404f}
+  .muted{color:var(--muted)}
+
+  .note{background:var(--accent-soft); border-left:4px solid var(--accent);
+        border-radius:0 10px 10px 0; padding:13px 20px; margin:16px 0; font-size:15px}
+  .takeaway{background:var(--teal-soft); border-left:4px solid var(--teal);
+            border-radius:0 10px 10px 0; padding:13px 20px; margin:16px 0; font-size:15px}
+  .kv{display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:14px; margin:18px 0}
+  .kv .item{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 18px}
+  .kv .k{font-size:12.5px; color:var(--muted); font-weight:600; letter-spacing:.04em}
+  .kv .v{font-size:16.5px; font-weight:700; margin-top:2px}
+  .kv .v small{font-weight:400; color:var(--muted); font-size:12.5px; display:block}
+
+  .math{background:var(--code-bg); border:1px solid var(--border); border-radius:10px;
+        padding:14px 22px; margin:14px auto; max-width:760px; text-align:center; font-size:15.5px;
+        overflow-x:auto; font-family:"STIX Two Math","Cambria Math",Georgia,"Times New Roman",serif; word-break:break-word}
+  .eq-no{float:right; color:var(--muted); font-size:13px}
+
+  /* 图片:等比缩放,绝不裁剪 */
+  figure.fig{margin:20px 0 8px; padding:0}
+  figure.fig img{display:block; margin:0 auto; max-width:100%; height:auto;
+                 border:1px solid var(--border); border-radius:8px; background:#fff}
+  figure.fig figcaption{margin:10px 0 0; padding:10px 16px; background:var(--card);
+                        border-left:3px solid var(--accent); border-radius:0 8px 8px 0;
+                        font-size:13.5px; color:var(--muted)}
+  figure.fig figcaption b{color:var(--ink)}
+  figure.fig figcaption .zh{display:block; margin-top:6px; color:#3d4756}
+
+  table.data{border-collapse:collapse; margin:0 auto; font-size:13.5px; line-height:1.5; background:var(--card)}
+  table.data caption{caption-side:top; text-align:left; font-weight:700; font-size:14px; padding:10px 4px; color:var(--ink)}
+  table.data th{background:var(--th-bg); border:1px solid var(--border); padding:7px 11px; font-weight:700; white-space:nowrap}
+  table.data td{border:1px solid var(--border); padding:6px 11px; text-align:center; white-space:nowrap}
+  table.data td:first-child, table.data th:first-child{text-align:left}
+  table.data tr.hl td{background:#f0f5ff; font-weight:700}
+  table.data tbody tr:nth-child(even):not(.hl) td{background:#fafbfd}
+  .tbl-wrap{overflow-x:auto; margin:14px 0; border-radius:10px}
+  .tbl-wrap .data{border:1px solid var(--border)}
+  .tbl-note{font-size:13.5px; color:var(--muted); margin:8px 0 14px; text-align:center}
+
+  ul.tight{margin:8px 0; padding-left:22px}
+  ul.tight li{margin:5px 0}
+  footer{margin-top:70px; padding:34px 0 50px; border-top:1px solid var(--border);
+         color:var(--muted); font-size:13.5px; text-align:center}
+  @media (max-width:760px){
+    body{font-size:15px}
+    header.hero h1{font-size:25px}
+    .toc ol{columns:1}
+    .math{font-size:14px}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker">Paper Reading Notes · arXiv:XXXX.XXXXX</div>
+    <h1>论文标题</h1>
+    <div class="subtitle">一句话概括论文做了什么、解决什么问题。</div>
+    <div class="meta">
+      <span>作者:<作者机构></span>
+      <span>论文:<a href="https://arxiv.org/abs/XXXX.XXXXX">arXiv:XXXX.XXXXX</a></span>
+      <span>代码:<a href="https://github.com/">GitHub</a>(如有)</span>
+    </div>
+    <div style="margin-top:18px"><span class="pill">关键词</span><span class="pill">关键词</span></div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<nav class="toc">
+  <h2>阅读导航(图文按讲述顺序穿插)</h2>
+  <ol>
+    <li><a href="#s1">速览</a></li>
+    <li><a href="#s2">背景</a></li>
+    <li><a href="#s3">观察</a></li>
+    <li><a href="#s4">方法</a></li>
+    <li><a href="#s5">系统</a></li>
+    <li><a href="#s6">实验</a></li>
+    <li><a href="#s7">补充分析</a></li>
+    <li><a href="#s8">局限与点评</a></li>
+  </ol>
+</nav>
+
+<!-- 章节模板:图文配合,先讲原理 → 图表在旁 → 逐点解读 -->
+<section id="s3">
+  <div class="sec-no">03 · Observations</div>
+  <h2 class="sec">观察</h2>
+  <p>讲原理……这张图说明了什么:</p>
+  <figure class="fig">
+    <img src="figs/fig1.png" alt="Figure 1 描述">
+    <figcaption>
+      <b>Figure 1:</b>English original caption.
+      <span class="zh">中文解读,逐点对照图内元素说明。</span>
+    </figcaption>
+  </figure>
+  <p>紧接图后继续解读图中的关键信息……</p>
+  <div class="takeaway"><b>小结:</b>……</div>
+</section>
+
+</div><!-- /wrap -->
+
+<footer>
+  <div class="wrap">
+    本页面为 arXiv:XXXX.XXXXX《标题》的人工精读笔记。图片以 300 DPI 摘自论文原文并按比例缩放展示(未裁剪),表格按原文数据重建;解读为编者观点。<br>
+    原文:arXiv:XXXX.XXXXX
+  </div>
+</footer>
+
+</body>
+</html>
