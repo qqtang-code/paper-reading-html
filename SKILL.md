@@ -81,6 +81,10 @@ python3 "$SKILL_DIR/scripts/extract_figs.py" paper.pdf crops.json out/
    补充→点评"讲述、每节 `sec-no`+`h2.sec`、局部 `note`/`takeaway` 强调块、公式用 `.math` 块、
    结尾脚注说明"图片为原文高清提取"。
 6. 中文文本与 HTML 结构用文件写入,避免 heredoc 转义问题;超长 HTML 分 part1/part2 写后 `cat` 合并。
+7. **读者体验层(v2 模板内置,必须保留)**:深色模式(记忆偏好、默认跟随系统)、顶栏章节跳转、
+   点击图片 lightbox 看原图、回到顶部、文末术语速查章节(正文缩写用 `<abbr title>` 悬停释义)、
+   分段公式用 `cases` 结构、og 分享标签、打印友好(@media print)。校验器会逐项检查这些特性,
+   缺失即 FAIL。
 
 ## 第 5 步:校验
 

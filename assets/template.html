@@ -3,20 +3,51 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="论文中文精读页:图文配合,全部图表高清内嵌">
+<meta name="keywords" content="论文精读, 论文解读, paper reading">
+<meta property="og:type" content="article">
+<meta property="og:title" content="论文精读 · 论文标题">
+<meta property="og:description" content="论文中文精读:全部图表高清内嵌,图文配合讲解">
+<meta property="og:url" content="https://example.github.io/example-page/">
+<meta name="theme-color" content="#2f5bd9">
 <title>论文精读 · 论文标题</title>
 <style>
-  /* ===== 图文配合精读页样式(paper-reading-html skill)===== */
+  /* ===== 图文配合精读页样式(paper-reading-html skill v2)===== */
   :root{
     --bg:#f6f8fb; --card:#ffffff; --ink:#1b2432; --muted:#5c6675;
     --accent:#2f5bd9; --accent-soft:#e8edfb; --teal:#0d8a6d; --teal-soft:#e3f4ee;
     --border:#dde3ec; --th-bg:#eef1f7; --code-bg:#f3f5f9;
+    --topbar-bg:rgba(255,255,255,.85); --shadow:0 2px 14px rgba(16,30,60,.10);
+    --hl-yellow:#fff3bf;
+  }
+  html[data-theme="dark"]{
+    --bg:#0f1420; --card:#171e2d; --ink:#e8ecf4; --muted:#9aa6ba;
+    --accent:#6e95f5; --accent-soft:#1d2a47; --teal:#3dd6ae; --teal-soft:#0f2e26;
+    --border:#26314a; --th-bg:#1c2436; --code-bg:#131a29;
+    --topbar-bg:rgba(15,20,32,.88); --shadow:0 2px 14px rgba(0,0,0,.45);
+    --hl-yellow:#4a3a10;
   }
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
   body{margin:0; padding:0; background:var(--bg); color:var(--ink);
        font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
-       line-height:1.85; font-size:16px}
+       line-height:1.85; font-size:16px; transition:background .25s ease,color .25s ease}
   .wrap{max-width:1180px; margin:0 auto; padding:0 28px}
+
+  /* 顶部常驻导航 */
+  .topbar{position:sticky; top:0; z-index:60; background:var(--topbar-bg);
+          backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+          border-bottom:1px solid var(--border); transition:background .25s ease}
+  .topbar .inner{max-width:1180px; margin:0 auto; padding:10px 28px; display:flex; align-items:center; gap:14px}
+  .topbar .brand{font-weight:800; font-size:15px; color:var(--ink); text-decoration:none; white-space:nowrap}
+  .topbar .brand span{color:var(--accent)}
+  .topbar .links{display:flex; gap:14px; margin-left:auto; align-items:center}
+  .topbar a.jump{font-size:13px; color:var(--muted); text-decoration:none; white-space:nowrap}
+  .topbar a.jump:hover{color:var(--accent)}
+  .theme-toggle{border:1px solid var(--border); background:var(--card); color:var(--ink);
+                border-radius:8px; padding:4px 10px; font-size:12.5px; cursor:pointer}
+  .theme-toggle:hover{border-color:var(--accent)}
+  @media (max-width:860px){.topbar a.jump{display:none}}
 
   header.hero{background:linear-gradient(135deg,#1f2c52 0%,#2f5bd9 60%,#3f7de0 100%);
               color:#fff; padding:60px 0 52px; margin:0}
@@ -41,7 +72,12 @@
   h4{font-size:16.5px; margin:22px 0 8px; font-weight:700}
   p{margin:10px 0}
   .lead{font-size:17px; color:#38404f}
+  html[data-theme="dark"] .lead{color:#c6cedd}
+  strong{font-weight:700}
   .muted{color:var(--muted)}
+
+  /* 术语缩略词 */
+  abbr[title]{text-decoration:underline dotted; cursor:help; text-decoration-color:var(--accent)}
 
   .note{background:var(--accent-soft); border-left:4px solid var(--accent);
         border-radius:0 10px 10px 0; padding:13px 20px; margin:16px 0; font-size:15px}
@@ -53,36 +89,71 @@
   .kv .v{font-size:16.5px; font-weight:700; margin-top:2px}
   .kv .v small{font-weight:400; color:var(--muted); font-size:12.5px; display:block}
 
+  /* 公式:cases 结构 */
   .math{background:var(--code-bg); border:1px solid var(--border); border-radius:10px;
-        padding:14px 22px; margin:14px auto; max-width:760px; text-align:center; font-size:15.5px;
+        padding:14px 22px; margin:14px auto; max-width:800px; text-align:center; font-size:15.5px;
         overflow-x:auto; font-family:"STIX Two Math","Cambria Math",Georgia,"Times New Roman",serif; word-break:break-word}
   .eq-no{float:right; color:var(--muted); font-size:13px}
+  .cases{display:inline-grid; grid-template-columns:max-content max-content; gap:2px 14px;
+         text-align:left; vertical-align:middle}
+  .cases .br{grid-column:1; opacity:.75; font-weight:700}
+  .cases .cond{grid-column:2; font-size:.88em; opacity:.85}
 
-  /* 图片:等比缩放,绝不裁剪 */
+  /* 图片:等比缩放,绝不裁剪;点击看原图 */
   figure.fig{margin:20px 0 8px; padding:0}
   figure.fig img{display:block; margin:0 auto; max-width:100%; height:auto;
-                 border:1px solid var(--border); border-radius:8px; background:#fff}
+                 border:1px solid var(--border); border-radius:8px; background:#fff; cursor:zoom-in}
   figure.fig figcaption{margin:10px 0 0; padding:10px 16px; background:var(--card);
                         border-left:3px solid var(--accent); border-radius:0 8px 8px 0;
                         font-size:13.5px; color:var(--muted)}
   figure.fig figcaption b{color:var(--ink)}
   figure.fig figcaption .zh{display:block; margin-top:6px; color:#3d4756}
+  html[data-theme="dark"] figure.fig figcaption .zh{color:#c6cedd}
+  .zoom-hint{font-size:12px; color:var(--muted); text-align:center; margin:4px 0 0; opacity:.85}
+
+  /* lightbox 全图查看 */
+  .lightbox{position:fixed; inset:0; z-index:200; background:rgba(5,10,23,.92);
+            display:none; align-items:center; justify-content:center; flex-direction:column; padding:20px}
+  .lightbox.open{display:flex}
+  .lightbox img{max-width:96vw; max-height:86vh; object-fit:contain; border-radius:6px; background:#fff}
+  .lightbox .lb-cap{color:#dfe6f5; font-size:13.5px; margin-top:14px; max-width:900px; text-align:center}
+  .lightbox .lb-close{position:absolute; top:18px; right:28px; color:#fff; font-size:34px; line-height:1;
+                      cursor:pointer; opacity:.8; background:none; border:none}
+  .lightbox .lb-close:hover{opacity:1}
 
   table.data{border-collapse:collapse; margin:0 auto; font-size:13.5px; line-height:1.5; background:var(--card)}
   table.data caption{caption-side:top; text-align:left; font-weight:700; font-size:14px; padding:10px 4px; color:var(--ink)}
   table.data th{background:var(--th-bg); border:1px solid var(--border); padding:7px 11px; font-weight:700; white-space:nowrap}
   table.data td{border:1px solid var(--border); padding:6px 11px; text-align:center; white-space:nowrap}
   table.data td:first-child, table.data th:first-child{text-align:left}
-  table.data tr.hl td{background:#f0f5ff; font-weight:700}
+  table.data tr.hl td{background:#eef3ff; font-weight:700}
+  html[data-theme="dark"] table.data tr.hl td{background:#23304f}
   table.data tbody tr:nth-child(even):not(.hl) td{background:#fafbfd}
+  html[data-theme="dark"] table.data tbody tr:nth-child(even):not(.hl) td{background:#141b29}
   .tbl-wrap{overflow-x:auto; margin:14px 0; border-radius:10px}
   .tbl-wrap .data{border:1px solid var(--border)}
   .tbl-note{font-size:13.5px; color:var(--muted); margin:8px 0 14px; text-align:center}
 
   ul.tight{margin:8px 0; padding-left:22px}
   ul.tight li{margin:5px 0}
+
+  .back-top{position:fixed; right:26px; bottom:30px; z-index:90; width:44px; height:44px; border-radius:50%;
+            background:var(--accent); color:#fff; border:none; font-size:20px; cursor:pointer;
+            box-shadow:var(--shadow); display:none}
+  .back-top.show{display:block}
+  .back-top:hover{filter:brightness(1.1)}
+
   footer{margin-top:70px; padding:34px 0 50px; border-top:1px solid var(--border);
          color:var(--muted); font-size:13.5px; text-align:center}
+
+  /* 打印 */
+  @media print{
+    .topbar,.back-top,.theme-toggle,.lightbox{display:none!important}
+    body{background:#fff; color:#000}
+    figure.fig{break-inside:avoid}
+    .tbl-wrap{break-inside:avoid}
+    a{color:#000; text-decoration:none}
+  }
   @media (max-width:760px){
     body{font-size:15px}
     header.hero h1{font-size:25px}
@@ -93,7 +164,26 @@
 </head>
 <body>
 
-<header class="hero">
+<!-- 顶栏:章节跳转 + 深色模式开关(章节链接随实际章节调整) -->
+<nav class="topbar">
+  <div class="inner">
+    <a class="brand" href="#top">论文名<span>·精读</span></a>
+    <div class="links">
+      <a class="jump" href="#s1">速览</a>
+      <a class="jump" href="#s2">背景</a>
+      <a class="jump" href="#s3">观察</a>
+      <a class="jump" href="#s4">方法</a>
+      <a class="jump" href="#s5">系统</a>
+      <a class="jump" href="#s6">实验</a>
+      <a class="jump" href="#s7">补充</a>
+      <a class="jump" href="#s8">点评</a>
+      <a class="jump" href="#s9">术语</a>
+      <button class="theme-toggle" aria-label="切换深色/浅色" title="切换深色/浅色">🌓</button>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
   <div class="wrap">
     <div class="kicker">Paper Reading Notes · arXiv:XXXX.XXXXX</div>
     <h1>论文标题</h1>
@@ -112,22 +202,16 @@
 <nav class="toc">
   <h2>阅读导航(图文按讲述顺序穿插)</h2>
   <ol>
-    <li><a href="#s1">速览</a></li>
-    <li><a href="#s2">背景</a></li>
-    <li><a href="#s3">观察</a></li>
-    <li><a href="#s4">方法</a></li>
-    <li><a href="#s5">系统</a></li>
-    <li><a href="#s6">实验</a></li>
-    <li><a href="#s7">补充分析</a></li>
-    <li><a href="#s8">局限与点评</a></li>
+    <li><a href="#s1">速览</a>…</li>
+    <li><a href="#s9">术语速查(阅读中随时回看)</a></li>
   </ol>
 </nav>
 
-<!-- 章节模板:图文配合,先讲原理 → 图表在旁 → 逐点解读 -->
-<section id="s3">
-  <div class="sec-no">03 · Observations</div>
-  <h2 class="sec">观察</h2>
-  <p>讲原理……这张图说明了什么:</p>
+<!-- ===== 章节模板:图文配合 ===== -->
+<section id="s1">
+  <div class="sec-no">01 · Overview</div>
+  <h2 class="sec">速览</h2>
+  <p>讲原理……第一张图说明了什么:</p>
   <figure class="fig">
     <img src="figs/fig1.png" alt="Figure 1 描述">
     <figcaption>
@@ -135,18 +219,103 @@
       <span class="zh">中文解读,逐点对照图内元素说明。</span>
     </figcaption>
   </figure>
-  <p>紧接图后继续解读图中的关键信息……</p>
+  <p class="zoom-hint">💡 点击任意图片可查看原始高清大图,再次点击或按 Esc 关闭。</p>
+  <p>紧接图后继续解读……</p>
+
+  <!-- 分段公式示例(cases 结构) -->
+  <div class="math">
+    τ<sub>t</sub> =
+    <span class="cases">
+      <span class="br">{</span>
+      <span class="cond">τ₀, &nbsp;if A</span>
+      <span class="cond">B, &nbsp;if C</span>
+    </span>
+    <span class="eq-no">(1)</span>
+  </div>
+
   <div class="takeaway"><b>小结:</b>……</div>
+</section>
+
+<!-- ……其余章节…… -->
+
+<!-- 术语速查(建议作为末章之前/之后的独立章节) -->
+<section id="s9">
+  <div class="sec-no">Glossary</div>
+  <h2 class="sec">术语速查</h2>
+  <p class="muted">阅读中遇到缩写,可随时回到这里;正文里的缩写也可悬停查看释义。</p>
+  <div class="tbl-wrap">
+  <table class="data">
+    <caption>阅读术语表(正文中带虚线下划线的缩写悬停可见)</caption>
+    <thead><tr><th>缩写</th><th>全称</th><th>一句话解释</th></tr></thead>
+    <tbody>
+      <tr><td>XXX</td><td>Full Name</td><td>解释</td></tr>
+    </tbody>
+  </table>
+  </div>
 </section>
 
 </div><!-- /wrap -->
 
+<button class="back-top" id="backTop" aria-label="回到顶部" title="回到顶部">↑</button>
+
+<!-- lightbox -->
+<div class="lightbox" id="lightbox" role="dialog" aria-label="图片大图预览">
+  <button class="lb-close" id="lbClose" aria-label="关闭">×</button>
+  <img id="lbImg" src="" alt="">
+  <div class="lb-cap" id="lbCap"></div>
+</div>
+
 <footer>
   <div class="wrap">
     本页面为 arXiv:XXXX.XXXXX《标题》的人工精读笔记。图片以 300 DPI 摘自论文原文并按比例缩放展示(未裁剪),表格按原文数据重建;解读为编者观点。<br>
-    原文:arXiv:XXXX.XXXXX
+    原文:arXiv:XXXX.XXXXX<br>
+    <span style="opacity:.75">支持深色模式 · 点击图片看原图 · 打印友好</span>
   </div>
 </footer>
+
+<script>
+(function(){
+  // 深色模式:记忆偏好,默认跟随系统
+  var KEY = 'pr-theme';
+  function apply(t){
+    document.documentElement.setAttribute('data-theme', t);
+    try{ localStorage.setItem(KEY, t); }catch(e){}
+  }
+  var saved = null;
+  try{ saved = localStorage.getItem(KEY); }catch(e){}
+  if (!saved) saved = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  apply(saved);
+  document.querySelector('.theme-toggle').addEventListener('click', function(){
+    var cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    apply(cur);
+  });
+
+  // lightbox:点击图片查看原图
+  var lb = document.getElementById('lightbox'), lbImg = document.getElementById('lbImg'), lbCap = document.getElementById('lbCap');
+  function openLb(img){
+    lbImg.src = img.currentSrc || img.src;
+    lbImg.alt = img.alt || '';
+    var cap = img.closest('figure');
+    lbCap.textContent = cap ? cap.querySelector('figcaption').innerText.replace(/\s+/g, ' ').trim() : '';
+    lb.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeLb(){ lb.classList.remove('open'); document.body.style.overflow = ''; }
+  document.querySelectorAll('figure.fig img').forEach(function(img){
+    img.addEventListener('click', function(){ openLb(img); });
+  });
+  document.getElementById('lbClose').addEventListener('click', closeLb);
+  lb.addEventListener('click', function(e){ if (e.target === lb) closeLb(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeLb(); });
+
+  // 回到顶部
+  var bt = document.getElementById('backTop');
+  window.addEventListener('scroll', function(){
+    if (window.scrollY > 500) bt.classList.add('show'); else bt.classList.remove('show');
+  });
+  bt.addEventListener('click', function(){ window.scrollTo({top:0, behavior:'smooth'}); });
+})();
+</script>
 
 </body>
 </html>

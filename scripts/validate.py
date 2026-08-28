@@ -50,6 +50,25 @@ def main():
     for v in [s for s in spot.split(",") if s]:
         if v not in src: problems.append(f"missing spot value: {v}")
 
+    # 7. reader experience layer (v2 template features)
+    feats = {
+        "dark mode css": 'data-theme="dark"' in src,
+        "theme toggle button": 'theme-toggle' in src,
+        "sticky topbar": 'class="topbar"' in src,
+        "back-to-top": 'id="backTop"' in src,
+        "lightbox": 'id="lightbox"' in src and 'id="lbClose"' in src,
+        "image zoom wiring": 'figure.fig img' in src and 'cursor:zoom-in' in src,
+        "glossary section": 'id="s9"' in src,
+        "print styles": '@media print' in src,
+        "og meta": 'og:title' in src,
+    }
+    missing_feats = [k for k, ok in feats.items() if not ok]
+    if missing_feats: problems.append(f"missing reader-experience features: {missing_feats}")
+
+    # 8. abbr terms recommended (at least a few for tutorial value; 0 is suspicious)
+    if src.count('<abbr title=') == 0:
+        problems.append("no <abbr> terms found — add hover-glosses for abbreviations in the prose")
+
     if problems:
         print("FAIL"); [print(" -", p) for p in problems]; sys.exit(1)
     print(f"PASS: figures={n_fig}, tables={len(caps)}, images={len(imgs)}, anchors ok")
