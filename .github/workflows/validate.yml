@@ -15,6 +15,25 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: pip install pymupdf
+
+      - name: Verify KaTeX SRI hashes match jsDelivr assets
+        run: |
+          python3 - <<'EOF'
+          import hashlib, base64, re, urllib.request
+          src = open("assets/template.html", encoding="utf-8").read()
+          attrs = re.findall(r'<link[^>]*integrity="sha384-([^"]+)"|<script[^>]*integrity="sha384-([^"]+)"', src)
+          expected = [a or b for a, b in attrs if "katex" in (a or b) and "katex" in (a or b)]
+          # fall back: collect pairs of (url, integrity) in order
+          katex_tags = re.findall(r'<link[^>]*|href="([^"]*katex[^"]*)"[^>]*>|<script[^>]*src="([^"]*katex[^"]*)"[^>]*>', src)
+          urls = re.findall(r'(?:href|src)="([^"]*katex[^"]*)"', src)
+          ints = re.findall(r'integrity="sha384-([^"]+)"', src)
+          assert len(urls) == len(ints) == 3, f"expected 3 katex assets, got urls={len(urls)} ints={len(ints)}"
+          for u, exp in zip(urls, ints):
+              data = urllib.request.urlopen(u, timeout=30).read()
+              calc = base64.b64encode(hashlib.sha384(data).digest()).decode()
+              assert calc == exp, f"SRI mismatch for {u}"
+              print(f"{u.split('/')[-1]} SRI OK")
+          EOF
       - name: Syntax-check all scripts
         run: |
           python3 -m py_compile scripts/*.py
