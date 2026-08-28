@@ -69,6 +69,15 @@ def main():
     if src.count('<abbr title=') == 0:
         problems.append("no <abbr> terms found — add hover-glosses for abbreviations in the prose")
 
+    # 9. formula rendering (KaTeX) + no unicode combo-char math
+    if 'katex@0.16.22/dist/katex.min.css' not in src or 'renderMathInElement' not in src:
+        problems.append("missing KaTeX wiring (css/js/auto-render) — formulas won't render")
+    for ch in ['\u0124', '\u0304', '\u2080']:  # Ĥ, combining macron, subscript zero
+        if ch in src.split('</style>')[-1]:
+            problems.append(f"unicode math combo char U+{ord(ch):04X} still in body — replace with KaTeX ($...$)")
+    if re.search(r'class="cases"', src):
+        problems.append("old HTML .cases formula blocks present — migrate to KaTeX display math")
+
     if problems:
         print("FAIL"); [print(" -", p) for p in problems]; sys.exit(1)
     print(f"PASS: figures={n_fig}, tables={len(caps)}, images={len(imgs)}, anchors ok")

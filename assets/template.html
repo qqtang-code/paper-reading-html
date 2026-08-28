@@ -10,6 +10,7 @@
 <meta property="og:description" content="论文中文精读:全部图表高清内嵌,图文配合讲解">
 <meta property="og:url" content="https://example.github.io/example-page/">
 <meta name="theme-color" content="#2f5bd9">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" integrity="sha384-5TcZemv2l/9On385z///+dMOUD4vlFq7KJ9QbBJEwN9BjX6mG2LAXwX8xUKmRzHv" crossorigin="anonymous">
 <title>论文精读 · 论文标题</title>
 <style>
   /* ===== 图文配合精读页样式(paper-reading-html skill v2)===== */
@@ -89,15 +90,13 @@
   .kv .v{font-size:16.5px; font-weight:700; margin-top:2px}
   .kv .v small{font-weight:400; color:var(--muted); font-size:12.5px; display:block}
 
-  /* 公式:cases 结构 */
+    /* 公式:KaTeX 渲染(display 用 $$…$$,内联用 $…$;避免 Unicode 组合字符) */
   .math{background:var(--code-bg); border:1px solid var(--border); border-radius:10px;
-        padding:14px 22px; margin:14px auto; max-width:800px; text-align:center; font-size:15.5px;
-        overflow-x:auto; font-family:"STIX Two Math","Cambria Math",Georgia,"Times New Roman",serif; word-break:break-word}
-  .eq-no{float:right; color:var(--muted); font-size:13px}
-  .cases{display:inline-grid; grid-template-columns:max-content max-content; gap:2px 14px;
-         text-align:left; vertical-align:middle}
-  .cases .br{grid-column:1; opacity:.75; font-weight:700}
-  .cases .cond{grid-column:2; font-size:.88em; opacity:.85}
+        padding:14px 22px; margin:14px auto; max-width:820px; text-align:center;
+        overflow-x:auto}
+  .math .katex-display{margin:0}
+  .math>.katex{font-size:1.06rem}
+  p .katex, li .katex{font-size:1em}
 
   /* 图片:等比缩放,绝不裁剪;点击看原图 */
   figure.fig{margin:20px 0 8px; padding:0}
@@ -222,16 +221,9 @@
   <p class="zoom-hint">💡 点击任意图片可查看原始高清大图,再次点击或按 Esc 关闭。</p>
   <p>紧接图后继续解读……</p>
 
-  <!-- 分段公式示例(cases 结构) -->
-  <div class="math">
-    τ<sub>t</sub> =
-    <span class="cases">
-      <span class="br">{</span>
-      <span class="cond">τ₀, &nbsp;if A</span>
-      <span class="cond">B, &nbsp;if C</span>
-    </span>
-    <span class="eq-no">(1)</span>
-  </div>
+  <!-- 分段公式示例(KaTeX display) -->
+  <div class="math">$$\tau_t = \begin{cases} \tau_0, & \text{if } A \\ B, & \text{if } C \end{cases} \tag{1}$$</div>
+  <p>内联符号示例:阈值 $\tau_0$、步骤熵 $\hat{H}_{\text{step}}(t)$、温度 $T_{\text{low}}$。</p>
 
   <div class="takeaway"><b>小结:</b>……</div>
 </section>
@@ -273,6 +265,8 @@
   </div>
 </footer>
 
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js" integrity="sha384-4Fh4xG9W6G7E9pXx4a7bGfZKb1U/E/fSQ6Iz7U8nCQ5iFsHFI1W3f7R/y6Y3ZkTn" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/contrib/auto-render.min.js" integrity="sha384-kPL0oYJMpPhMpIO6sZ6/bcFqy/P5SgLLHfs9k08G5xL9QkZxQUHVkQ7sYQ8UO1G+b" crossorigin="anonymous" onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});"></script>
 <script>
 (function(){
   // 深色模式:记忆偏好,默认跟随系统

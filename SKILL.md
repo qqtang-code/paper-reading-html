@@ -83,7 +83,7 @@ python3 "$SKILL_DIR/scripts/extract_figs.py" paper.pdf crops.json out/
 6. 中文文本与 HTML 结构用文件写入,避免 heredoc 转义问题;超长 HTML 分 part1/part2 写后 `cat` 合并。
 7. **读者体验层(v2 模板内置,必须保留)**:深色模式(记忆偏好、默认跟随系统)、顶栏章节跳转、
    点击图片 lightbox 看原图、回到顶部、文末术语速查章节(正文缩写用 `<abbr title>` 悬停释义)、
-   分段公式用 `cases` 结构、og 分享标签、打印友好(@media print)。校验器会逐项检查这些特性,
+   公式用 KaTeX 渲染(display `$$…$$` + 内联 `$…$`),避免 Unicode 组合字符(Ĥ/H̄/τ₀ 等)在部分字体下错位、og 分享标签、打印友好(@media print)。校验器会逐项检查这些特性,
    缺失即 FAIL。
 
 ## 第 5 步:校验
