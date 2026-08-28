@@ -43,23 +43,13 @@ file paper.pdf   # 期望: PDF document
 
 ## 第 2 步:定位图表
 
-用 PyMuPDF 程序化定位,不要靠肉眼猜:
+用 `scripts/locate_figs.py` 程序化定位(不要靠肉眼猜),它输出每页的图注位置、光栅图框、矢量图带,并自动生成页级候选 `crops.json`:
 
-```python
-import fitz
-doc = fitz.open('paper.pdf')
-for pno in range(len(doc)):
-    page = doc[pno]
-    print(pno+1, [c for c in page.search_for("Figure")])  # 图注位置
-    print(pno+1, [c for c in page.search_for("Table")])   # 表注位置
+```bash
+python3 "$SKILL_DIR/scripts/locate_figs.py" paper.pdf crops.json
 ```
 
-配合两种手段确定每个图的**精确裁剪框**:
-- `page.get_images(full=True)` + `page.get_image_rects()`:光栅图的实际位置;
-- `page.get_drawings()` 的 y 聚类 + `page.get_text('blocks')`:矢量图的绘图边界与文字块范围;
-
-三者交叉验证,得到每个图的 (page_idx, rect)。矩形必须刚好包住该图全部面板与图注,
-**不得混入正文或其他图**。
+若同页有多个图,按脚本打印的边界把 rect 拆细。每张图坐标确定后,**人工复核一遍**(内容与图注是否对齐、是否混入正文)。该冒烟路径由 CI 用 `assets/example_paper.pdf` 持续验证。
 
 ## 第 3 步:高 DPI 提取(核心)
 
@@ -94,7 +84,10 @@ python3 "$SKILL_DIR/scripts/extract_figs.py" paper.pdf crops.json out/
 
 ## 第 5 步:校验
 
+**在 HTML 所在目录运行**(相对路径 `figs/` 才能解析):
+
 ```bash
+cd <HTML所在目录>
 python3 "$SKILL_DIR/scripts/validate.py" res.html
 ```
 
@@ -119,8 +112,14 @@ gh api -X POST repos/<user>/<PaperName>-Project-Page/pages \
 
 ```
 paper-reading-html/
-├── SKILL.md
-├── assets/template.html      ← HTML 骨架(样式 + 结构)
-├── scripts/extract_figs.py   ← crops.json → 300DPI PNG
-└── scripts/validate.py       ← HTML 完整性校验
+├── SKILL.md                ← 本文件
+├── README.md               ← 读者视角的使用指南(两种用法 + 铁律)
+├── assets/
+│   ├── template.html       ← HTML 骨架(样式 + 结构)
+│   └── example_paper.pdf   ← CI 冒烟测试用样例论文
+├── scripts/
+│   ├── locate_figs.py      ← 自动检测图表位置 → crops.json
+│   ├── extract_figs.py     ← crops.json → 300DPI PNG
+│   └── validate.py         ← HTML 完整性校验
+└── .github/workflows/validate.yml  ← CI:语法 + locate 冒烟 + 模板完整性
 ```

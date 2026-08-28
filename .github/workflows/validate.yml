@@ -1,0 +1,32 @@
+name: Validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install pymupdf
+      - name: Syntax-check all scripts
+        run: |
+          python3 -m py_compile scripts/*.py
+      - name: Smoke-test locate_figs on the example paper
+        run: |
+          python3 scripts/locate_figs.py assets/example_paper.pdf crops.json
+          test -s crops.json && echo "locate_figs OK ($(grep -c '"page"' crops.json) crops)"
+      - name: Template sanity
+        run: |
+          python3 - <<'EOF'
+          src = open("assets/template.html", encoding="utf-8").read()
+          assert "max-width:100%" in src and "height:auto" in src, "template missing responsive img CSS"
+          assert src.count("<figure class=\"fig\"") == src.count("</figure>"), "template figure mismatch"
+          print("template OK")
+          EOF

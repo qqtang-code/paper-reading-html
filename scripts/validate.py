@@ -15,7 +15,9 @@ def main():
     # 1. images exist; responsive comes from the CSS rule (figure.fig img), not inline attrs
     imgs = re.findall(r'<img src="([^"]+)"', src)
     missing = [i for i in imgs if not os.path.exists(i)]
-    if missing: problems.append(f"missing images: {missing}")
+    if missing:
+        problems.append(f"missing images: {missing}\n"
+                        f"        (run validate.py from the directory containing the HTML, so relative paths like figs/ resolve)")
     if not re.search(r'figure\.fig\s+img\s*\{[^}]*max-width:\s*100%[^}]*height:\s*auto', src):
         problems.append("missing CSS rule 'figure.fig img {max-width:100%; height:auto}'")
     # no fixed pixel width / height attributes on any img
