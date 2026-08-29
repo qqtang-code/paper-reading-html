@@ -76,7 +76,16 @@ python3 "$SKILL_DIR/scripts/extract_figs.py" paper.pdf crops.json out/
 2. **图表随讲解内嵌**:每个 Figure/Table 必须出现在与之对应的讲解段落里(先讲原理 → 图/表在旁 →
    紧接逐点解读),**禁止**"图表全部单列在一个库/画廊章节、文字另外单讲"。导航、章节都按讲述顺序组织。
 3. 每个 `<figure>` 必须有 `figcaption`:首行英文原图注,再一行中文解读(标注 `class="zh"`)。
-4. 每个 `<table>` 用 `<caption>` 写表号+表题;"ReSET 行"等关键行加 `hl` 高亮。
+4. **表格一律用"图"呈现,禁止空表格壳**:页面里的每个 Table 必须是
+   `<div class="tbl-wrap"><figure class="fig"><img src="figs/tableN.png">…<figcaption>…</figcaption></figure></div>`
+   ——即"300 DPI 表格原图 + figcaption 标题/解读",figcaption 首行写 `Table N: 表题`。
+   **禁止**在 figure 外面再包一层只含 `<caption>` 的 `<table class="data">` 空壳
+   (即 `<div class="tbl-wrap"><table><caption>…</caption></table><figure>…</figure></div>`
+   的嵌套写法)。空壳表格没有内容单元格,宽度会缩到内容最小宽度,导致一长条标题疯狂换行成
+   "窄长条";且脚本删除/修改时极易误伤嵌套其中的表格图片 figure。若确需在正文内放数据型
+   `<table>`(如术语速查),必须带 thead/tbody 真实内容行,不能只有 caption。
+   附带地,图注(含 Table 系列)默认放在 figure 内由 figcaption 承载,天然占满容器宽度、
+   正常换行。
 5. 正文包含:封面 header(标题/作者/arXiv 链接/关键词 pill)、目录导航、按"背景→观察→方法→系统→实验→
    补充→点评"讲述、每节 `sec-no`+`h2.sec`、局部 `note`/`takeaway` 强调块、公式用 `.math` 块、
    结尾脚注说明"图片为原文高清提取"。
@@ -85,6 +94,13 @@ python3 "$SKILL_DIR/scripts/extract_figs.py" paper.pdf crops.json out/
    点击图片 lightbox 看原图、回到顶部、文末术语速查章节(正文缩写用 `<abbr title>` 悬停释义)、
    公式用 KaTeX 渲染(display `$$…$$` + 内联 `$…$`),避免 Unicode 组合字符(Ĥ/H̄/τ₀ 等)在部分字体下错位、og 分享标签、打印友好(@media print)。校验器会逐项检查这些特性,
    缺失即 FAIL。
+
+> **经验教训(MMLongEmbed 精读页踩坑)**:某次修复把"空表格壳"误删成"整个容器",
+> 连带删掉了嵌套其中的表格原图 `<figure>`,页面只剩 caption 文字。教训有两点:
+> ① 不要为标题包空表格壳——标题直接放 figcaption,避免嵌套结构剪不断理还乱;
+> ② 修改既有 HTML 时,先 `grep -A3 '<table class="data">'` 看清楚真实嵌套结构再动手,
+> 删除用精准的闭标签匹配并本地验证 `validate.py` + 数 `<figure class="fig">` 数量,
+> 提交前务必确认表格图片引用(`figs/tableN.png`)一条不少。
 
 ## 第 5 步:校验
 
@@ -97,7 +113,9 @@ python3 "$SKILL_DIR/scripts/validate.py" res.html
 
 检查:① 引用的每个 img 存在且无缺;② Figure 数、Table 数与论文一致;③ Table caption 编号
 1..N 完整、无重复;④ 所有 `href="#..."` 锚点存在;⑤ 标签开闭平衡;⑥ 每个 img 都带
-`max-width:100%` 与 `height:auto`;⑦ 关键数字出现(抽查)。全部 PASS 才可交付。
+`max-width:100%` 与 `height:auto`;⑦ 关键数字出现(抽查);⑧ **无"空表格壳"**——形如
+`<table class="data"><caption>…</caption></table>`、只有标题没有内容单元格的表格会被
+校验器判 FAIL(术语速查等真实数据表不受影响)。全部 PASS 才可交付。
 
 ## 第 6 步(可选):推送与 GitHub Pages 部署
 

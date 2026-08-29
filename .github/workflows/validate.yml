@@ -44,8 +44,33 @@ jobs:
       - name: Template sanity
         run: |
           python3 - <<'EOF'
+          import re
           src = open("assets/template.html", encoding="utf-8").read()
           assert "max-width:100%" in src and "height:auto" in src, "template missing responsive img CSS"
           assert src.count("<figure class=\"fig\"") == src.count("</figure>"), "template figure mismatch"
+          for m in re.finditer(r'<table\b[^>]*class="data"[^>]*>.*?</table>', src, re.S):
+              assert re.search(r'<(thead|tbody|td|tr|th)\b', m.group(0)), "empty caption-shell table in template"
           print("template OK")
+          EOF
+      - name: Validator regression (empty-shell detection)
+        run: |
+          python3 - <<'EOF'
+          import subprocess, sys, tempfile, os
+          bad = '''<html><body>
+          <div class="tbl-wrap">
+            <table class="data"><caption>Table 1: 标题</caption></table>
+            <figure class="fig"><img src="figs/table1.png"><figcaption>x</figcaption></figure>
+          </div>
+          <script>var x=1;</script>
+          </body></html>'''
+          with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as f:
+              f.write(bad); path = f.name
+          try:
+              r = subprocess.run([sys.executable, "scripts/validate.py", path],
+                                 capture_output=True, text=True)
+              assert r.returncode != 0 and "empty caption-shell tables found: 1" in r.stderr + r.stdout, (
+                  "validator failed to detect empty caption-shell table")
+              print("validator empty-shell regression OK")
+          finally:
+              os.unlink(path)
           EOF

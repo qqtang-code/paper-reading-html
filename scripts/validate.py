@@ -45,6 +45,22 @@ def main():
         o = len(re.findall(rf"<{tag}[ >]", src)); c = len(re.findall(rf"</{tag}>", src))
         if o != c: problems.append(f"<{tag}> open={o} close={c}")
 
+    # 5b. no "empty caption shells": a table that has a <caption> but no content
+    # cells (<thead>/<tbody>/<td>/<tr>) is a caption-only shell — it shrinks to
+    # min-content width and renders the title as a long narrow column, and it
+    # invites scripts to accidentally delete nested <figure> images. Real data
+    # tables (e.g. the glossary) carry cells and are unaffected.
+    empty_shells = 0
+    for m in re.finditer(r'<table\b[^>]*class="data"[^>]*>.*?</table>', src, re.S):
+        body = m.group(0)
+        if not re.search(r'<(thead|tbody|td|tr|th)\b', body):
+            empty_shells += 1
+    if empty_shells:
+        problems.append(f"empty caption-shell tables found: {empty_shells} — "
+                        f"tables must be real data tables (with cells) or be rendered as "
+                        f"<figure class='fig'><img src='figs/tableN.png'>… plus figcaption; "
+                        f"never nest a caption-only <table> around a table-image figure")
+
     # 6. key-numbers spot check (options: pass via env or skip)
     spot = os.environ.get("SPOT_CHECKS", "")
     for v in [s for s in spot.split(",") if s]:

@@ -57,7 +57,13 @@ python3 scripts/validate.py 你的页面.html
 1. **图片等比缩放、绝不裁剪**:`<img>` 不加固定像素宽高,响应式由 CSS `figure.fig img { max-width:100%; height:auto }` 保证;图片文件本身保持 300 DPI 原图。
 2. **图表随讲解内嵌**:每个 Figure/Table 出现在对应讲解段落里(讲原理 → 图/表在旁 → 逐点解读),禁止独立"图表库"章节。
 3. **图表不重不漏**:Figure 与 Table 数量与论文一致,表号 1..N 齐全。
-4. 每个 `<figure>` 图注:英文原图注 + 中文解读;每个 `<table>` 用 `<caption>` 写表号表题。
+4. **表格一律用"图"呈现,禁止空表格壳**:每个 Table 页面呈现为
+   `<div class="tbl-wrap"><figure class="fig"><img src="figs/tableN.png">…<figcaption>…</figcaption></figure></div>`
+   ——图注(标题 + 中文解读)放 figcaption,里面是表格 300 DPI 原图;
+   **禁止**为标题再包一层只含 `<caption>` 的空 `<table class="data">` 壳
+   (宽度会缩成窄长条,且删除时易误伤嵌套的表格图片)。
+   校验器会检测"只有 caption、无内容单元格"的空壳表并判 FAIL;
+   术语速查这类真实数据表不受影响(须带 thead/tbody 内容行)。
 5. 文本/结构用文件写入,避免 heredoc 转义;超长 HTML 分 part1/part2 写后 cat 合并。
 6. **读者体验层(模板内置,校验器强制检查)**:深色模式(记忆偏好)、顶栏章节跳转、点击图片 lightbox 看原图、回到顶部、术语速查 + 正文 `<abbr>` 悬停释义、公式用 KaTeX 渲染(display $$…$$ + 内联 $…$)、og 分享标签、打印友好。
 
