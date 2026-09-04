@@ -81,6 +81,20 @@ def main():
     missing_feats = [k for k, ok in feats.items() if not ok]
     if missing_feats: problems.append(f"missing reader-experience features: {missing_feats}")
 
+    # 7b. language switcher: a lang-toggle link must point at an existing local file
+    # (a switcher whose href 404s is a broken bilingual edition; the portal's
+    # <button class="lang-toggle"> is inline-i18n and has no href, so it's skipped)
+    for m in re.finditer(r'<a\b[^>]*\bclass="lang-toggle"[^>]*>', src):
+        h = re.search(r'href="([^"]+)"', m.group(0))
+        if not h:
+            continue
+        href = h.group(1)
+        if href.startswith(("http", "#", "mailto:", "javascript:")):
+            continue
+        if not os.path.exists(href):
+            problems.append(f"lang-toggle target missing: {href} "
+                            f"(the language switcher must link to an existing edition file)")
+
     # 8. abbr terms recommended (at least a few for tutorial value; 0 is suspicious)
     if src.count('<abbr title=') == 0:
         problems.append("no <abbr> terms found — add hover-glosses for abbreviations in the prose")

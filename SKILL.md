@@ -2,9 +2,11 @@
 name: paper-reading-html
 description: >-
   论文精读 HTML 生成与部署。当用户给出一篇论文(arXiv 链接 / PDF 文件),要求"讲解、精读、
-  梳理、读论文、做笔记、paper reading、生成 HTML 解读页、放到个人主页/项目页/github.io 子路径"时使用。
+  梳理、读论文、做笔记、paper reading、生成 HTML 解读页、放到个人主页/项目页/github.io 子路径",
+  或要求"英文版、English edition、双语、中英切换、bilingual"时使用。
   产出"图文配合"的中文精读页面:全部图表按原文 300 DPI 高清提取、等比缩放不裁剪、图表随讲解段落
-  内嵌(而非图表单列、文字单讲),并可将产物推送到远程 GitHub / GitHub Pages。适用于任何论文讲解
+  内嵌(而非图表单列、文字单讲),并可将产物推送到远程 GitHub / GitHub Pages。可按需生成同目录
+  英文版 en.html 与全站 中/EN 语言切换(pr-lang 偏好记忆)。适用于任何论文讲解
   场景:即使只是一个链接或一句"帮我讲讲这篇",也用它。
 ---
 
@@ -17,6 +19,8 @@ description: >-
 
 - `res.html`(建议命名 `XXX论文精读_HTML.html`,XXX=论文名缩写)——单文件中文精读页
 - `figs/`——全部图表,按原文版面 300 DPI 高清 PNG,等比展示不裁剪
+- 可选:`en.html`——同目录英文版(完整镜像或速读版),与中文页共用 `figs/`;
+  配套全站 中/EN 语言切换(localStorage `pr-lang`,详见第 7 步)
 - 可选:推送 GitHub 仓库 + GitHub Pages 部署子路径
 
 ## 流程总览
@@ -27,6 +31,7 @@ description: >-
 4. 按"图文配合"结构撰写 HTML(模板在 `assets/template.html`)
 5. 校验(结构/锚点/图片/表格完整性)
 6. 可选:git 推送 + GitHub Pages 部署
+7. 可选:中英双语版(en.html + 语言切换器,见第 7 步)
 
 ## 第 1 步:获取论文
 
@@ -115,7 +120,8 @@ python3 "$SKILL_DIR/scripts/validate.py" res.html
 1..N 完整、无重复;④ 所有 `href="#..."` 锚点存在;⑤ 标签开闭平衡;⑥ 每个 img 都带
 `max-width:100%` 与 `height:auto`;⑦ 关键数字出现(抽查);⑧ **无"空表格壳"**——形如
 `<table class="data"><caption>…</caption></table>`、只有标题没有内容单元格的表格会被
-校验器判 FAIL(术语速查等真实数据表不受影响)。全部 PASS 才可交付。
+校验器判 FAIL(术语速查等真实数据表不受影响)。⑨ 页面里若存在语言切换器
+(`class="lang-toggle"` 的链接),其 `href` 指向的本地文件必须真实存在。全部 PASS 才可交付。
 
 ## 第 6 步(可选):推送与 GitHub Pages 部署
 
@@ -129,6 +135,154 @@ gh api -X POST repos/<user>/<PaperName>-Project-Page/pages \
 ```
 
 交付时:报告 HTML 路径、figs/ 目录、仓库链接、Pages URL。
+
+## 第 7 步(可选):中英双语版(中文精读 + English edition)
+
+用户要求"英文版 / 中英切换 / 面向国际读者"时,在**同一论文目录**加 `en.html`,与中文页共用
+`figs/`(绝不重复提取图片),不改动已交付的中文页。英文版深度按论文重要性二选一:
+
+- **完整英文镜像**(旗舰论文):全部章节、全部图表、逐段翻译,结构 1:1 对应中文页;
+- **英文速读版**(常规论文):完整速览(kv 卡列贡献/关键数字)+ 论文全部图表按叙述顺序内嵌
+  (原图注 + 英文解读)+ 点评。体量约为镜像版一半,但**图表一张不少**。
+
+### en.html 的约定
+
+- `<html lang="en">`;读者体验层(深色模式/顶栏/lightbox/KaTeX/术语表 `id="s9"`/abbr 悬停)
+  与中文页完全一致,校验器同样强制检查。
+- 图注结构对应中文页的 `.zh` 解读行,改用 `<span class="ex">` 承载英文解读(CSS 样式照抄 `.zh`):
+
+```html
+<figcaption>
+  <b>Figure 7:</b>Using $\hat{H}_{\text{step}}$ only can misclassify low-entropy tokens.
+  <span class="ex">If the step-relative threshold were used everywhere, ...</span>
+</figcaption>
+```
+
+- **速读版里的真实 HTML 数据表,`<caption>` 禁止以 "Table N:" 开头**:校验器要求
+  `<caption>Table N` 编号 1..N 连续完整,速读版只收录论文表格的子集,必然断号判 FAIL。
+  写描述性标题并括注出处,如 `<caption>AIME-120 accuracy (from the paper's Table 1)</caption>`
+  ——不触发编号检查,信息也不丢。(镜像版收录全部表格时不受此限。)
+- 公式里出现 `<`/`>`(如 `\begin{cases}` 的分支)必须写 `&lt;`/`&gt;` 实体,DOM 文本解码后
+  KaTeX 才能正确解析。
+
+### 语言偏好约定(pr-lang)
+
+全站统一用 `localStorage['pr-lang']`(`'zh'`/`'en'`)记住读者选择,**首次访问跟随浏览器语言**
+(任何 `zh` 开头的 locale → zh,否则 en)。判定逻辑固定写法:
+
+```js
+var lang = null; try{ lang = localStorage.getItem('pr-lang'); }catch(e){}
+if (lang !== 'zh' && lang !== 'en') {
+  lang = String(navigator.language || navigator.userLanguage || 'en').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en';
+}
+```
+
+### 精读页的语言切换器
+
+每个中文页顶栏(theme-toggle 旁)加 EN 按钮,**先写偏好再跳转**,让目标页直接以所选语言
+渲染;英文页对称地链回中文页。样式与 theme-toggle 同族:
+
+```css
+.lang-toggle{border:1px solid var(--border); background:var(--card); color:var(--ink);
+             border-radius:8px; padding:4px 10px; font-size:12.5px; cursor:pointer;
+             text-decoration:none; font-weight:700; white-space:nowrap}
+.lang-toggle:hover{border-color:var(--accent); color:var(--accent)}
+```
+
+```html
+<!-- 中文页 → 英文版 -->
+<a class="lang-toggle" href="en.html" title="Read in English"
+   onclick="try{localStorage.setItem('pr-lang','en')}catch(e){}">EN</a>
+<!-- 英文页 → 中文版(中文页文件名按实际,如 index.html) -->
+<a class="lang-toggle" href="index.html" title="阅读中文版"
+   onclick="try{localStorage.setItem('pr-lang','zh')}catch(e){}">中文</a>
+```
+
+### 门户/索引页:页内双语(inline i18n)
+
+合集首页等多语言导航页**不要**复制成两份 HTML,用"双 span + CSS 显隐"在同一页内即时切换:
+
+```html
+<!-- ① <head> 最前面、首帧绘制前设置 lang,避免闪一下错语言 -->
+<script>
+(function(){
+  var lang = null;
+  try{ lang = localStorage.getItem('pr-lang'); }catch(e){}
+  if (lang !== 'zh' && lang !== 'en') {
+    lang = String(navigator.language || navigator.userLanguage || 'en').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en';
+  }
+  document.documentElement.lang = (lang === 'en') ? 'en' : 'zh-CN';
+})();
+</script>
+```
+
+```css
+/* ② 双语并存,按 html lang 显隐(zh 两种写法都要覆盖) */
+html[lang="en"] .i18n-zh{display:none!important}
+html[lang="zh-CN"] .i18n-en{display:none!important}
+html[lang="zh"] .i18n-en{display:none!important}
+```
+
+```html
+<!-- ③ 文案成对书写;卡片等链接按语言分别指向对应语言版本 -->
+<span class="i18n-zh">论文精读合集</span><span class="i18n-en">Paper Reading Collection</span>
+<button class="lang-toggle" id="langToggle" title="Switch language / 切换语言">
+  <span class="i18n-zh">EN</span><span class="i18n-en">中文</span>
+</button>
+```
+
+```js
+// ④ 切换:只改 lang 属性(CSS 连动),顺手换标题
+var TITLES = {zh:'论文精读合集', en:'Paper Reading Collection'};
+function curLang(){ return document.documentElement.lang === 'en' ? 'en' : 'zh'; }
+function applyTitle(){ document.title = TITLES[curLang()]; }
+applyTitle();
+document.getElementById('langToggle').addEventListener('click', function(){
+  var next = curLang() === 'en' ? 'zh' : 'en';
+  document.documentElement.lang = next === 'en' ? 'en' : 'zh-CN';
+  try{ localStorage.setItem('pr-lang', next); }catch(e){}
+  applyTitle();
+});
+```
+
+优点:不用 innerHTML 换文案(链接与事件全保留)、两种语言都在 DOM 里(SEO 双收)、
+`<head>` 内联脚本先于首帧执行不闪屏。注意两点:打印样式里隐藏 `.lang-toggle`;
+门户卡片在两种语言下**直接指向对应语言页面**(不要依赖重定向)。
+
+### 目录入口的语言分流
+
+若论文目录有 `index.html` 入口,改成"读 pr-lang → `location.replace` 到对应语言页"的
+重定向 stub,并留无 JS 兜底链接:
+
+```html
+<script>
+(function(){
+  var ZH = 'Declarative-Attention论文精读_HTML.html', EN = 'en.html';
+  var lang = null; try{ lang = localStorage.getItem('pr-lang'); }catch(e){}
+  if (lang !== 'zh' && lang !== 'en') {
+    lang = String(navigator.language || navigator.userLanguage || 'en').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en';
+  }
+  location.replace(lang === 'en' ? EN : ZH);
+})();
+</script>
+<p>正在跳转…… Redirecting…</p>
+<p><a href="中文页.html">中文精读版</a> · <a href="en.html">English edition</a></p>
+```
+
+重定向只兜"直接输入目录 URL"的场景;且该 stub 不是阅读页,不必过校验器。
+
+### 双语版的校验与上线
+
+- `en.html` 与中文页跑**同一个** `validate.py`(在页面所在目录运行),`SPOT_CHECKS` 各自抽查
+  关键数字,双语两版都要 PASS 才可交付;
+- 推送后先等 Pages 构建完成再验收,早测 404 多半只是传播延迟:
+
+```bash
+gh api repos/<user>/<repo>/pages/builds/latest --jq '.status'   # 期望 "built"
+```
+
+- 验收脚本逐页 GET 全部页面,并解析每页 `<img src="figs/...">` 全量回访(单次失败重试 2 次,
+  规避本机偶发 SSL 抖动),要求 failures=0。
 
 ## 目录
 

@@ -1,6 +1,6 @@
 # paper-reading-html
 
-把一篇论文变成**图文配合**的中文精读 HTML 页面——所有图表按原文 300 DPI 高清提取、等比展示不裁剪,图表嵌在对应讲解段落里,而不是"图表单列、文字单讲"。为 ZCode 环境设计,同时提供手动脚本可供独立使用。
+把一篇论文变成**图文配合**的中文精读 HTML 页面——所有图表按原文 300 DPI 高清提取、等比展示不裁剪,图表嵌在对应讲解段落里,而不是"图表单列、文字单讲"。支持配套英文版(`en.html`)与全站 中/EN 一键切换。为 ZCode 环境设计,同时提供手动脚本可供独立使用。
 
 ## 用法(A 方案:在 ZCode 里)
 
@@ -67,6 +67,16 @@ python3 scripts/validate.py 你的页面.html
 5. 文本/结构用文件写入,避免 heredoc 转义;超长 HTML 分 part1/part2 写后 cat 合并。
 6. **读者体验层(模板内置,校验器强制检查)**:深色模式(记忆偏好)、顶栏章节跳转、点击图片 lightbox 看原图、回到顶部、术语速查 + 正文 `<abbr>` 悬停释义、公式用 KaTeX 渲染(display $$…$$ + 内联 $…$)、og 分享标签、打印友好。
 
+## 中英双语版(可选)
+
+要求"英文版 / 中英切换 / 面向国际读者"时,在同一论文目录生成 `en.html`(与中文页共用 `figs/`):旗舰论文做**完整英文镜像**(全章节逐段翻译),常规论文做**英文速读版**(速览 + 论文全部图表原图注 + 解读)。语言行为由 `localStorage['pr-lang']` 统一约定——首次访问跟随浏览器语言,之后记住读者选择:
+
+- 精读页顶栏 中/EN 按钮互相跳转,切换时先写偏好再导航;
+- 合集门户用"双 span + CSS 显隐"做**页内即时切换**(不复制页面、两种语言都可被搜索引擎索引、首帧前设置语言不闪屏);
+- 目录入口 `index.html` 按语言偏好 `location.replace` 分流,并留无 JS 兜底链接。
+
+校验器会检查切换器指向的目标文件真实存在。完整模式与代码样例见 `SKILL.md` 第 7 步。
+
 ## 部署到 GitHub Pages(可选)
 
 ```bash
@@ -80,6 +90,10 @@ gh api -X POST repos/<user>/<PaperName>-Project-Page/pages \
 
 - 本 skill 首个产物(实测校验通过):ReSET 论文精读页 <https://qqtang-code.github.io/ReSET-Project-Page/>
   - 8 张 Figure(300 DPI)+ 16 张 Table 全部内嵌,图文随讲解段落走。
+- 双语合集(中/EN 全站切换,10 页面 + 122 请求线上验收零失败):
+  <https://qqtang-code.github.io/Paper-Reading-Collection/>
+  - 4 篇中文精读 + 4 篇英文版(Declarative Attention 完整镜像 + 3 篇速读版),
+    完整英文版示例:<https://qqtang-code.github.io/Paper-Reading-Collection/efficient-inference/declarative-attention/en.html>
 
 ## 许可证
 
