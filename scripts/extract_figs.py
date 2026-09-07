@@ -6,6 +6,10 @@ Usage:
 
 crops.json format (0-based page index, rect in PDF points):
     {"fig1": {"page": 2, "rect": [336, 294, 516, 454]}, ...}
+
+"page" is a 0-BASED index passed straight to doc[page]. Writing 1-based
+page numbers silently crops the SAME rect from the NEXT page — PNG size
+still matches the rect, so only a pixel/content check can catch it.
 """
 import fitz, json, os, sys
 
@@ -23,7 +27,8 @@ def main():
         pix = page.get_pixmap(dpi=300, clip=rect)
         path = os.path.join(out_dir, f"{name}.png")
         pix.save(path)
-        print(f"{name}: {pix.width}x{pix.height}px page={spec['page']+1} rect={rect}")
+        snippet = " ".join(page.get_text("text", clip=rect).split())[:48]
+        print(f"{name}: {pix.width}x{pix.height}px page_idx={spec['page']} (PDF p.{spec['page']+1}) rect={rect} text≈[{snippet}]")
 
 if __name__ == "__main__":
     main()
