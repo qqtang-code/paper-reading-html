@@ -111,6 +111,9 @@ python3 "$SKILL_DIR/scripts/extract_figs.py" paper.pdf crops.json out/
    点击图片 lightbox 看原图、回到顶部、文末术语速查章节(正文缩写用 `<abbr title>` 悬停释义)、
    公式用 KaTeX 渲染(display `$$…$$` + 内联 `$…$`),避免 Unicode 组合字符(Ĥ/H̄/τ₀ 等)在部分字体下错位、og 分享标签、打印友好(@media print)。校验器会逐项检查这些特性,
    缺失即 FAIL。
+8. **溯源标注(推荐;缺项时校验器输出 WARN 提醒)**:速览章"读数约定"note、上游方法的行内引用、
+   点评章"技术来源一览"表与"未披露、值得补测"清单、每张图注末尾的原文页码(`span.pgref`)。
+   做法与代码样例见下节"溯源与深读增强"。
 
 > **经验教训(MMLongEmbed 精读页踩坑)**:某次修复把"空表格壳"误删成"整个容器",
 > 连带删掉了嵌套其中的表格原图 `<figure>`,页面只剩 caption 文字。教训有两点:
@@ -118,6 +121,48 @@ python3 "$SKILL_DIR/scripts/extract_figs.py" paper.pdf crops.json out/
 > ② 修改既有 HTML 时,先 `grep -A3 '<table class="data">'` 看清楚真实嵌套结构再动手,
 > 删除用精准的闭标签匹配并本地验证 `validate.py` + 数 `<figure class="fig">` 数量,
 > 提交前务必确认表格图片引用(`figs/tableN.png`)一条不少。
+
+### 溯源与深读增强(推荐;校验器对缺项输出 `WARN (recommended)`)
+
+精读页的可信度来自"每个数字都能回到原文"。以下四件套把它做成读者可见的规范:
+
+**① 读数约定(速览章 `.note`)**
+
+```html
+<div class="note"><b>读数约定:</b>本页全部数字以论文原文为准;凡由本页依据论文配置整理、归纳或换算的内容,
+均以「<b>整理</b>」「<b>推算</b>」显式标注,便于与论文口径区分。记号沿用论文:$L$ 为总层数,$m$ 为压缩率。</div>
+```
+
+英文版对应 "Reading conventions:",标注用 **[organized] / [estimated]**。
+
+**② 引用与来源标注**
+
+- 正文首次提到上游方法时给行内引用 `(Author et al., Year)`——引用口径取自论文自己的标注,
+  不要自行补论文没引的文献;
+- 点评章加"技术来源一览"真实数据表(`<table class="data wrap">`,三列:组件 / 论文标注的上游 /
+  本代的改造),caption 用描述性标题(**禁止**以 "Table N" 开头,会触发表号 1..N 完整性校验);
+  表尾注明"引用为论文行内标注口径,本页未逐条核对参考文献条目"。
+
+**③ 配置落到具体数字的走查(方法章)**
+
+- 讲完抽象机制后,补一段"把论文配置落到层号/张量/参数"的走查:列出论文给出的关键配置,
+  并推出一个可数的结论——如"编码器 3 组×6 层、解码器 5 组×4 层,全模型 40 层里只有 4 层
+  真正从零生成全局 KV";
+- 只列论文确实给出的配置;直接加总的标「整理」,凡是换算/推算的标「推算」并给出换算过程。
+
+**④ "未披露、值得补测"清单(点评章)**
+
+- 3–5 条,与"论文自述局限"分开写;措辞用"未见…披露 / 值得… / 待…"的开放句式;
+- 断言"论文没有 X"之前先全文检索确认(如 `grep throughput paper.txt`);
+- 区分"论文口径的数字"与"本页机制归纳"(如"每 token 890 字节"是论文总量,分项拆解是本页归纳)。
+
+**图注原文页码**:每张 figcaption 末尾(解读行之后)加 `<span class="pgref">报告 p.X</span>`
+(英文版 `Report p.X`),用脚本从 crops.json 批量注入(幂等、自动补 CSS、缺图会报错):
+
+```bash
+python3 "$SKILL_DIR/scripts/add_pagerefs.py" res.html crops.json                        # 中文页
+python3 "$SKILL_DIR/scripts/add_pagerefs.py" en.html crops.json --label "Report p.{p}"  # 英文页
+```
 
 ## 第 5 步:校验
 
@@ -133,7 +178,10 @@ python3 "$SKILL_DIR/scripts/validate.py" res.html
 `max-width:100%` 与 `height:auto`;⑦ 关键数字出现(抽查);⑧ **无"空表格壳"**——形如
 `<table class="data"><caption>…</caption></table>`、只有标题没有内容单元格的表格会被
 校验器判 FAIL(术语速查等真实数据表不受影响)。⑨ 页面里若存在语言切换器
-(`class="lang-toggle"` 的链接),其 `href` 指向的本地文件必须真实存在。全部 PASS 才可交付。
+(`class="lang-toggle"` 的链接),其 `href` 指向的本地文件必须真实存在;⑩ `span.pgref` 要么每张
+图注都有、要么一张都没有(只标一部分判 FAIL)。全部 PASS 才可交付。
+
+推荐项缺失不判 FAIL,以 `WARN (recommended)` 提示:读数约定 / 行内引用 / 原文页码 / 待补测清单。
 
 ## 第 6 步(可选):推送与 GitHub Pages 部署
 
@@ -176,6 +224,8 @@ gh api -X POST repos/<user>/<PaperName>-Project-Page/pages \
   ——不触发编号检查,信息也不丢。(镜像版收录全部表格时不受此限。)
 - 公式里出现 `<`/`>`(如 `\begin{cases}` 的分支)必须写 `&lt;`/`&gt;` 实体,DOM 文本解码后
   KaTeX 才能正确解析。
+- 溯源四件套同样镜像:速览章 "Reading conventions" note、行内引用、点评章 lineage 表与
+  "Not disclosed, worth testing next" 清单;图注页码用 `--label "Report p.{p}"` 注入。
 
 ### 语言偏好约定(pr-lang)
 
@@ -308,6 +358,7 @@ paper-reading-html/
 ├── scripts/
 │   ├── locate_figs.py      ← 自动检测图表位置 → crops.json
 │   ├── extract_figs.py     ← crops.json → 300DPI PNG
+│   ├── add_pagerefs.py     ← crops.json → 图注原文页码(span.pgref)
 │   └── validate.py         ← HTML 完整性校验
 └── .github/workflows/validate.yml  ← CI:语法 + locate 冒烟 + 模板完整性
 ```

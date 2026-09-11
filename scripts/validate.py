@@ -108,9 +108,32 @@ def main():
     if re.search(r'class="cases"', src):
         problems.append("old HTML .cases formula blocks present — migrate to KaTeX display math")
 
+        # 9b. source page refs: all-or-none. A page that labels some exhibits with the
+    # source page (span.pgref) but not others is half-traceable; 0 refs stays legal
+    # for pages built before this convention.
+    pg = src.count('class="pgref"')
+    if 0 < pg < n_cap:
+        problems.append(f"only {pg} of {n_cap} figcaptions carry a source page ref (span.pgref) — "
+                        f"add them for every exhibit (scripts/add_pagerefs.py) or none")
+
+    # 10. recommended practices — reported as WARN only, never fail the build
+    body = src.split('</style>')[-1]
+    warns = []
+    if '读数约定' not in src and 'Reading conventions' not in src:
+        warns.append("reading-conventions note (读数约定 / Reading conventions) — recommended for every page")
+    if 'et al.' not in body:
+        warns.append("inline citations like \"(Author et al., 2024)\" — attribute upstream methods to their papers")
+    if pg == 0:
+        warns.append("source page refs in figcaptions (span.pgref) — run scripts/add_pagerefs.py")
+    if not any(k in body for k in ('值得补测', '未披露', 'worth testing', 'Not disclosed')):
+        warns.append("\"not disclosed / worth testing\" list in the commentary — recommended")
+
     if problems:
-        print("FAIL"); [print(" -", p) for p in problems]; sys.exit(1)
+        print("FAIL"); [print(" -", p) for p in problems]
+        [print("WARN (recommended):", w) for w in warns]
+        sys.exit(1)
     print(f"PASS: figures={n_fig}, tables={len(caps)}, images={len(imgs)}, anchors ok")
+    [print("WARN (recommended):", w) for w in warns]
 
 if __name__ == "__main__":
     main()

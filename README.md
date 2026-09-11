@@ -48,7 +48,8 @@ python3 scripts/validate.py 你的页面.html
 |---|---|
 | `scripts/locate_figs.py` | 自动检测光栅图/矢量图/图注,生成 `crops.json` |
 | `scripts/extract_figs.py` | `crops.json` → 300 DPI PNG(固定 300,不缩放) |
-| `scripts/validate.py` | 校验:图片存在 + 响应式、Figure/Table 数量与表号、锚点、标签平衡;exit 0=PASS |
+| `scripts/validate.py` | 校验:图片存在 + 响应式、Figure/Table 数量与表号、锚点、标签平衡;exit 0=PASS(推荐项缺项以 WARN 提示) |
+| `scripts/add_pagerefs.py` | 从 `crops.json` 给每张图注注入原文页码 `span.pgref`(幂等,自动补 CSS) |
 | `assets/template.html` | 图文配合页面样式骨架(hero/目录/章节/图注/表格样式) |
 | `SKILL.md` | ZCode 技能主体:完整流程与铁律 |
 
@@ -66,6 +67,7 @@ python3 scripts/validate.py 你的页面.html
    术语速查这类真实数据表不受影响(须带 thead/tbody 内容行)。
 5. 文本/结构用文件写入,避免 heredoc 转义;超长 HTML 分 part1/part2 写后 cat 合并。
 6. **读者体验层(模板内置,校验器强制检查)**:深色模式(记忆偏好)、顶栏章节跳转、点击图片 lightbox 看原图、回到顶部、术语速查 + 正文 `<abbr>` 悬停释义、公式用 KaTeX 渲染(display $$…$$ + 内联 $…$)、og 分享标签、打印友好。
+7. **溯源标注(推荐,校验器 WARN 提醒)**:速览章"读数约定"(数字以原文为准,整理/推算显式标注)、上游方法的行内引用、点评章"技术来源一览"表与"未披露、值得补测"清单、每张图注末尾的原文页码(`span.pgref`,脚本注入)。详见 `SKILL.md` 的"溯源与深读增强"。
 
 ## 中英双语版(可选)
 
@@ -90,10 +92,13 @@ gh api -X POST repos/<user>/<PaperName>-Project-Page/pages \
 
 - 本 skill 首个产物(实测校验通过):ReSET 论文精读页 <https://qqtang-code.github.io/ReSET-Project-Page/>
   - 8 张 Figure(300 DPI)+ 16 张 Table 全部内嵌,图文随讲解段落走。
-- 双语合集(中/EN 全站切换,10 页面 + 122 请求线上验收零失败):
+- 双语合集(中/EN 全站切换,15 个页面 + 195 个请求线上验收零失败):
   <https://qqtang-code.github.io/Paper-Reading-Collection/>
-  - 4 篇中文精读 + 4 篇英文版(Declarative Attention 完整镜像 + 3 篇速读版),
-    完整英文版示例:<https://qqtang-code.github.io/Paper-Reading-Collection/efficient-inference/declarative-attention/en.html>
+  - 6 篇中文精读 + 6 篇英文版(Declarative Attention、DeepSeek-V4.1-Flash 为完整镜像,其余为速读版);
+  - 完整英文版示例:<https://qqtang-code.github.io/Paper-Reading-Collection/efficient-inference/declarative-attention/en.html>
+- 溯源与深读增强的完整示例(读数约定 / 行内引用 / 技术来源一览 / 未披露清单 / 图注原文页码):
+  DeepSeek-V4.1-Flash 精读页 <https://qqtang-code.github.io/DeepSeek-V4.1-Flash-Project-Page/>
+  - 中文页与英文页均含全部图表(300 DPI,18 张)、层配置落层走查与上述溯源规范。
 
 ## 许可证
 
