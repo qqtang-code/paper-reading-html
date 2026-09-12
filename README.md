@@ -92,10 +92,10 @@ gh api -X POST repos/<user>/<PaperName>-Project-Page/pages \
 
 - 本 skill 首个产物(实测校验通过):ReSET 论文精读页 <https://qqtang-code.github.io/ReSET-Project-Page/>
   - 8 张 Figure(300 DPI)+ 16 张 Table 全部内嵌,图文随讲解段落走。
-- 双语合集(中/EN 全站切换,15 个页面 + 195 个请求线上验收零失败):
+- 双语合集(中/EN 全站切换,18 个页面 + 262 个请求线上验收零失败,按「注意力与 KV Cache / 高效推理与部署 / 评测基准」三类组织):
   <https://qqtang-code.github.io/Paper-Reading-Collection/>
-  - 6 篇中文精读 + 6 篇英文版(Declarative Attention、DeepSeek-V4.1-Flash 为完整镜像,其余为速读版);
-  - 完整英文版示例:<https://qqtang-code.github.io/Paper-Reading-Collection/efficient-inference/declarative-attention/en.html>
+  - 7 篇中文精读 + 7 篇英文版(Declarative Attention、DeepSeek-V4.1-Flash 为完整镜像,其余为速读版);
+  - 完整英文版示例:<https://qqtang-code.github.io/Paper-Reading-Collection/attention-kv-cache/declarative-attention/en.html>
 - 溯源与深读增强的完整示例(读数约定 / 行内引用 / 技术来源一览 / 未披露清单 / 图注原文页码):
   DeepSeek-V4.1-Flash 精读页 <https://qqtang-code.github.io/DeepSeek-V4.1-Flash-Project-Page/>
   - 中文页与英文页均含全部图表(300 DPI,18 张)、层配置落层走查与上述溯源规范。
