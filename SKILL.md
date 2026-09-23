@@ -206,15 +206,22 @@ python3 "$SKILL_DIR/scripts/validate.py" res.html
      **不得引入论文之外的任何数字**;
   3. **单文件、可离线** —— 优先导出 SVG/PNG 放 `figs/` 用 `<img>` 引用(lightbox/打印/图片校验天然复用);
      必须内联 HTML 图表时内联全部依赖,不引 CDN。
-- **选型与绘制交给 lieflat-charts skill**(用户级技能目录,通常是 `~/.agents/skills/lieflat-charts/`):
-  按 `catalog.md` 用**数据形状**选型 → 先审计 Lupi Editorial(L1–L19)与 Lupi Basics(F1–F17),各比较
-  至少 3 个并写下淘汰理由 → 才允许降到 Glance → 以锁定的 gallery 卡片为结构骨架改数据 → 从
-  `mono-tokens.js` 或**一套** `color-presets.js` 预设取色。未安装时降级为手写 SVG,仍须遵守上面三条。
+- **选型与绘制用本仓库自带的 `vendor/lieflat-charts/`**(离线可用,无需另外安装):
+  按 `vendor/lieflat-charts/catalog.md` 用**数据形状**选型 → 先审计 Lupi Editorial(L1–L19)与
+  Lupi Basics(F1–F17),各比较至少 3 个并写下淘汰理由 → 才允许降到 Glance → 以锁定的 gallery 卡片
+  (`vendor/lieflat-charts/templates/*-gallery.html`)为结构骨架改数据 → 从 `mono-tokens.js` 或
+  **一套** `color-presets.js` 预设取色。两者都不可用时降级为手写 SVG,仍须遵守上面三条。
 - **一页只用一套色彩系统**,且自绘图要同时适配深色与浅色模式。
+- **离线要求(实测)**:只有 **Lupi Editorial** 与 `big-threads` 不依赖图表库,断网也能画出图;
+  **Basics 部分卡片用 ECharts、Glance 用 Chart.js/ECharts、Maps 还要在线 GeoJSON** —— 断网时
+  Basics 只留下空的 `<svg>` 容器。精读页若承诺"本地打开无需联网",自绘图就走 **Lupi Editorial
+  手写 SVG + 内联 `mono-tokens.js`**,或把所用库内联进单文件。详见 `references/lieflat-charts.md`。
+- `python3 scripts/vendor_check.py` 可自检副本完整性与许可证是否随副本分发。
 
-> ⚠️ **许可**:lieflat-charts 采用 **PolyForm Noncommercial License 1.0.0**(非商业),与本技能仓库的
-> MIT 不同 —— 因此**只按依赖调用,不把它的模板/代码复制进本仓库或产物再分发**。自绘图的成品可以随
-> 精读页发布(那是使用产出);若要再分发它的模板文件本身,需遵守其许可证并署名(开发者为「躺在废墟里」)。
+> ⚠️ **许可(重要)**:`vendor/lieflat-charts/` 采用 **PolyForm Noncommercial License 1.0.0**(非商业),
+> 与本仓库其余部分的 MIT 不同 —— **带该目录的仓库整体只能非商业使用**,许可证原文必须随副本分发
+> (`vendor/lieflat-charts/LICENSE`,不得删改)。详见 [`vendor/README.md`](vendor/README.md)。
+> 开发者是「躺在废墟里」,公开分发图表内容时按其要求署名。要商用请删除 `vendor/lieflat-charts/`。
 
 ## 第 6 步(可选):推送与 GitHub Pages 部署
 
@@ -391,6 +398,9 @@ paper-reading-html/
 │   ├── template.html       ← HTML 骨架(样式 + 结构)
 │   ├── chart-figure.html   ← 自绘图表的插入片段(data-selfchart + 「本页自绘」标注)
 │   └── example_paper.pdf   ← CI 冒烟测试用样例论文
+├── vendor/
+│   ├── README.md           ← 第三方目录说明与许可后果(本仓库整体转为非商业可用)
+│   └── lieflat-charts/     ← 图表法典副本(66 文件/1.4MB;PolyForm Noncommercial,附 LICENSE)
 ├── scripts/
 │   ├── locate_figs.py      ← 自动检测图表位置 → crops.json
 │   ├── extract_figs.py     ← crops.json → 300DPI PNG

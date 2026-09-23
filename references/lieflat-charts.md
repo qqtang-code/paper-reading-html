@@ -1,12 +1,13 @@
 # 本页自绘图表(与 lieflat-charts 的对接)
 
 精读页的主体是**论文原图**;这一节处理例外情况:你需要一张论文里**不存在**的图。
-它把 **lieflat-charts** skill(用户级技能目录,通常是 `~/.agents/skills/lieflat-charts/`)作为
-**上游依赖**接进来,并规定一张自绘图在精读页里必须遵守的交付契约。
+它用本仓库 **自带的 `vendor/lieflat-charts/`**(lieflat-charts 的完整功能副本,离线可用)来选型、
+取色、绘图,并规定一张自绘图在精读页里必须遵守的交付契约。
 
-> 为什么是"依赖"而不是"复制进来":lieflat-charts 采用 **PolyForm Noncommercial License 1.0.0**,
-> 与本仓库的 MIT 不同。把它的模板/代码搬进本仓库会产生许可证混用。因此这里只规定**对接方式**,
-> 不复制它的任何文件;选型、取色、绘图仍然在 lieflat-charts 里完成。
+> ⚠️ **许可证**:`vendor/lieflat-charts/` 采用 **PolyForm Noncommercial License 1.0.0(非商业)**,
+> 与本仓库其余部分的 MIT 不同 —— 因此**带这个目录的仓库整体只能非商业使用**。许可证原文随副本一起
+> 分发(`vendor/lieflat-charts/LICENSE`),搬运时不得删改;详见 [`vendor/README.md`](../vendor/README.md)
+> 与 [`vendor/lieflat-charts/VENDORED.md`](../vendor/lieflat-charts/VENDORED.md)。要商用请删掉该目录。
 
 ---
 
@@ -63,16 +64,20 @@
 
 ## 3. 如何调用 lieflat-charts
 
-完整法典在 lieflat-charts skill 里(用户级技能目录,常见位置 `~/.agents/skills/lieflat-charts/`):
+完整法典随仓库分发在 **`vendor/lieflat-charts/`**(离线可用,无需另外安装):
 
 | 文件 | 用途 |
 |---|---|
-| `catalog.md` | 按**数据形状**选图型(不是按"好看") |
-| `templates/lupi-gallery.html` | Lupi Editorial 编辑器风格(细读、逐记录) |
-| `templates/basics-gallery.html` | Lupi Basics 基础型(柱/折线/面积/环形/散点…) |
-| `templates/glance-gallery.html` | Glance 快读型(Chart.js / ECharts)——**默认降级方案,不是首选** |
-| `mono-tokens.js` | 设计 token:Mono 灰阶、字体、圆角、动画、reveal 机制 |
-| `color-presets.js` | 三套彩色预设(porcelain / palm / wire) |
+| `vendor/lieflat-charts/catalog.md` | 按**数据形状**选图型(不是按"好看") |
+| `vendor/lieflat-charts/templates/lupi-gallery.html` | Lupi Editorial 编辑器风格(细读、逐记录) |
+| `vendor/lieflat-charts/templates/basics-gallery.html` | Lupi Basics 基础型(柱/折线/面积/环形/散点…) |
+| `vendor/lieflat-charts/templates/glance-gallery.html` | Glance 快读型(Chart.js / ECharts)——**默认降级方案,不是首选** |
+| `vendor/lieflat-charts/mono-tokens.js` | 设计 token:Mono 灰阶、字体、圆角、动画、reveal 机制 |
+| `vendor/lieflat-charts/color-presets.js` | 三套彩色预设(porcelain / palm / wire) |
+| `vendor/lieflat-charts/report-catalog.md` | R01–R12 整页报告模板(只在你需要整页报告时用) |
+
+副本完整性/许可证可用 `python3 scripts/vendor_check.py` 自检;离线能力见下文「离线能力」表。若本仓库的 `vendor/` 被删掉(例如改用
+商用许可的替代方案),再回退到用户级安装目录 `~/.agents/skills/lieflat-charts/`。
 
 流程仍然是它那一套,不要跳步:
 
@@ -83,17 +88,42 @@
 4. **取色** —— 从 `mono-tokens.js` 或**一套** `color-presets.js` 预设;一页只用一套。
 5. **过它的自检清单**(数值与视觉成正比、字号下限、确定性随机、reduced-motion、`node --check`)。
 
-**未安装 lieflat-charts 时**:降级为手写 SVG,仍然遵守上面的第 2 节契约;不要凭记忆复刻它的模板细节,
+**两者都不可用时**:降级为手写 SVG,仍然遵守上面的第 2 节契约;不要凭记忆复刻它的模板细节,
 也不要假装用了它。在交付说明里如实写"自绘图为手写 SVG,未经过 lieflat-charts 选型"。
+
+### 离线能力(已实测,按模板区分)
+
+自绘图最终会以 `<img>` 形式进精读页,而本仓库宣传"本地打开无需联网"——所以**用哪个 gallery 会决定
+交付物能不能离线**。下表的"离线"指断网(全部 DNS 黑洞)打开 gallery 后图表是否真的画出来:
+
+| Gallery | 图表引擎 | 离线可用? |
+|---|---|---|
+| `lupi-gallery.html` | 手写 SVG(仅 Inter 字体走网络,断网回退系统字体) | ✅ 实测图表正常绘制 |
+| `big-threads.html` | 手写 SVG | ✅ 无图表库依赖 |
+| `basics-gallery.html` | 多数手写 SVG,部分卡片用 ECharts | ❌ 实测断网后 16 个 `<svg>` 容器内**零图形**,联网才能画全 |
+| `glance-gallery.html` | Chart.js + ECharts | ❌ 需联网 |
+| `maps-gallery.html` | ECharts + 在线 GeoJSON | ❌ 需联网 |
+| `big-circular.html` / `big-force.html` | ECharts | ❌ 需联网 |
+
+**结论**:要完全离线,自绘图走 **Lupi Editorial(hand-written SVG)**,并把 `mono-tokens.js` 内联、
+字体依赖去掉;或者把所选模板用到的库内联进单文件。需要 Basics 的具体图型时,先确认那张卡是手写 SVG
+还是 ECharts——是 ECharts 就得内联或换型。`vendor/lieflat-charts/THIRD_PARTY_NOTICES.md` 列了
+Inter / Chart.js / ECharts 三个第三方依赖各自的许可证。
 
 ## 4. 导出与嵌入
 
 ```bash
-# 从 lieflat-charts 产出的单文件 HTML 导出为精读页可用的位图/矢量:
-# 方案 A(推荐,矢量):浏览器打开图表 HTML → 用 SVG 导出插件,或直接以手写 SVG 交付
-# 方案 B(位图):对图表卡片截图/导出 2x PNG,存到 figs/
+# 1) 打开 vendored gallery,按 catalog 锁定的卡片找到 // ════ 图型名 ════ 渲染代码
+open vendor/lieflat-charts/templates/basics-gallery.html     # macOS;或直接浏览器打开
+# 2) 按第九节骨架组装单文件图表 HTML(内联 mono-tokens.js 全文),数据换成你的
+# 3) 导出为精读页可用的矢量/位图:
+#    方案 A(推荐):图表本身就是手写 SVG → 直接把那段 <svg> 存成 .svg 文件
+#    方案 B:对图表卡片导出/截图 2x PNG
 cp chart.svg  <论文目录>/figs/chart-token-vs-block.svg
 ```
+
+> 手写 SVG 的模板用 `<svg viewBox=...>` 描述图形,把整段 `<svg>` 存成 `.svg` 文件即可被 `<img>` 引用
+> (注意保留 `viewBox`、补上 `xmlns="http://www.w3.org/2000/svg"`、把 CSS 内联成 `style=` 属性)。
 
 ```html
 <!-- 页面里按 §2 的契约引用;无需写 width/height 属性(CSS 已做 max-width:100%; height:auto) -->
@@ -118,5 +148,6 @@ cp chart.svg  <论文目录>/figs/chart-token-vs-block.svg
 
 ## 6. 署名
 
-lieflat-charts 由「躺在废墟里」开发。用它的法典产出图表后,在**回复里**(而不是图表内容或
-本仓库 README 里)提示一句署名;公开分发图表内容时按其要求署名或 @ 开发者。
+lieflat-charts 由「躺在废墟里」开发(made at [moxt.ai](https://moxt.ai))。用它的法典产出图表后,
+在**回复里**(而不是图表内容或本仓库 README 里)提示一句署名;公开分发图表内容时按其要求署名或 @ 开发者。
+许可证与出处记录在 `vendor/lieflat-charts/LICENSE`、`THIRD_PARTY_NOTICES.md` 与 `VENDORED.md`。

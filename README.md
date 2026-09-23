@@ -50,9 +50,11 @@ python3 scripts/validate.py 你的页面.html
 | `scripts/extract_figs.py` | `crops.json` → 300 DPI PNG(固定 300,不缩放) |
 | `scripts/validate.py` | 校验:图片存在 + 响应式、Figure/Table 数量与表号、锚点、标签平衡;exit 0=PASS(推荐项缺项以 WARN 提示) |
 | `scripts/add_pagerefs.py` | 从 `crops.json` 给每张图注注入原文页码 `span.pgref`(幂等,自动补 CSS) |
+| `scripts/vendor_check.py` | 校验 `vendor/lieflat-charts/` 副本完整、许可证随副本分发(CI 也跑) |
 | `assets/template.html` | 图文配合页面样式骨架(hero/目录/章节/图注/表格样式) |
 | `assets/chart-figure.html` | **本页自绘图表的插入片段**(`data-selfchart` + 「本页自绘」标注,复制即用) |
-| `references/lieflat-charts.md` | **本页自绘图表的完整规程**:何时画 + 交付契约 + 如何对接 lieflat-charts + 许可说明 |
+| `references/lieflat-charts.md` | **本页自绘图表的完整规程**:何时画 + 交付契约 + 用法 + 许可说明 |
+| `vendor/lieflat-charts/` | 图表法典**副本**(catalog / galleries / tokens / reports,1.4MB,离线可用;PolyForm **非商业**许可) |
 | `SKILL.md` | ZCode 技能主体:完整流程与铁律 |
 
 ## 产出规范(铁律)
@@ -72,10 +74,9 @@ python3 scripts/validate.py 你的页面.html
 5. 文本/结构用文件写入,避免 heredoc 转义;超长 HTML 分 part1/part2 写后 cat 合并。
 6. **读者体验层(模板内置,校验器强制检查)**:深色模式(记忆偏好)、顶栏章节跳转、点击图片 lightbox 看原图、回到顶部、术语速查 + 正文 `<abbr>` 悬停释义、公式用 KaTeX 渲染(display $$…$$ + 内联 $…$)、og 分享标签、打印友好。
 8. **自绘图表与论文图表严格区分(可选能力)**:论文给不出一张关键对照/推导视图时,可按
-   `references/lieflat-charts.md` 自绘一张(选型与绘制走 lieflat-charts 法典)。三条硬规则:
+   `references/lieflat-charts.md` 自绘一张(选型与绘制走 `vendor/lieflat-charts/` 的法典)。三条硬规则:
    **不占用 Figure/Table 编号**、**每个数字都能回到原文(推算标「整理/推算」,不得引入论文之外的数字)**、
    **单文件可离线**(优先 SVG/PNG 放 `figs/` 用 `<img>` 引用)。校验器会检查标注与编号合规。
-   注意 lieflat-charts 是 **PolyForm Noncommercial(非商业)** 许可,只按依赖调用、不复制其代码进本仓库。
 9. **溯源标注(推荐,校验器 WARN 提醒)**:速览章"读数约定"(数字以原文为准,整理/推算显式标注)、上游方法的行内引用、点评章"技术来源一览"表与"未披露、值得补测"清单、每张图注末尾的原文页码(`span.pgref`,脚本注入)。详见 `SKILL.md` 的"溯源与深读增强"。
 
 ## 中英双语版(可选)
@@ -113,8 +114,17 @@ gh api -X POST repos/<user>/<PaperName>-Project-Page/pages \
 
 MIT。本仓库以"读者的使用体验"为第一优先级:任何环节让你困惑,欢迎开 issue 或 PR。
 
-**第三方依赖**:"本页自绘图表"能力**按依赖方式**对接 [lieflat-charts](https://github.com/) skill
-(图表选型 / 模板骨架 / 设计 token),其许可证为 **PolyForm Noncommercial License 1.0.0(非商业)**,
-与本仓库的 MIT 不同。因此本仓库**不包含、也不再分发**它的任何代码或模板文件——只规定对接方式
-(见 `references/lieflat-charts.md`)。若你要在商业场景使用自绘图表的产出,或要再分发 lieflat-charts
-本身,请自行核对其许可条款并署名其开发者(「躺在废墟里」)。
+### 第三方依赖与混合许可(重要)
+
+`vendor/lieflat-charts/` 是 **lieflat-charts** skill 的副本(图表选型 / 模板骨架 / 设计 token),
+用于"本页自绘图表"能力。它的许可证是 **PolyForm Noncommercial License 1.0.0(非商业)**,
+与本仓库其余部分的 MIT **不同**,且 MIT 无法覆盖它。
+
+因此:**带 `vendor/lieflat-charts/` 的仓库整体只能用于非商业目的**。
+- 许可证原文随副本一起分发(`vendor/lieflat-charts/LICENSE`),搬运时不得删改;
+- 出处、版本摘要(manifest digest)与刷新方法见 `vendor/lieflat-charts/VENDORED.md`;
+- 若要在商业场景使用本仓库,**删掉 `vendor/lieflat-charts/` 即可** —— 其余流程(图表提取、校验、
+  中英双语页、部署)没有任何非 MIT 依赖,只是"自绘图表"这一步需要换成别的图表库;
+- 上游开发者是「躺在废墟里」,公开分发用它产出的图表内容时请署名。
+
+自检:`python3 scripts/vendor_check.py`(CI 也会跑)。

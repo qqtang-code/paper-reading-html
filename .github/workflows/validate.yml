@@ -37,6 +37,8 @@ jobs:
       - name: Syntax-check all scripts
         run: |
           python3 -m py_compile scripts/*.py
+      - name: Vendored lieflat-charts intact (incl. licence travels with the copy)
+        run: STRICT=1 python3 scripts/vendor_check.py
       - name: Smoke-test locate_figs on the example paper
         run: |
           python3 scripts/locate_figs.py assets/example_paper.pdf crops.json
