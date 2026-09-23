@@ -51,13 +51,17 @@ python3 scripts/validate.py 你的页面.html
 | `scripts/validate.py` | 校验:图片存在 + 响应式、Figure/Table 数量与表号、锚点、标签平衡;exit 0=PASS(推荐项缺项以 WARN 提示) |
 | `scripts/add_pagerefs.py` | 从 `crops.json` 给每张图注注入原文页码 `span.pgref`(幂等,自动补 CSS) |
 | `assets/template.html` | 图文配合页面样式骨架(hero/目录/章节/图注/表格样式) |
+| `assets/chart-figure.html` | **本页自绘图表的插入片段**(`data-selfchart` + 「本页自绘」标注,复制即用) |
+| `references/lieflat-charts.md` | **本页自绘图表的完整规程**:何时画 + 交付契约 + 如何对接 lieflat-charts + 许可说明 |
 | `SKILL.md` | ZCode 技能主体:完整流程与铁律 |
 
 ## 产出规范(铁律)
 
 1. **图片等比缩放、绝不裁剪**:`<img>` 不加固定像素宽高,响应式由 CSS `figure.fig img { max-width:100%; height:auto }` 保证;图片文件本身保持 300 DPI 原图。
 2. **图表随讲解内嵌**:每个 Figure/Table 出现在对应讲解段落里(讲原理 → 图/表在旁 → 逐点解读),禁止独立"图表库"章节。
-3. **图表不重不漏**:Figure 与 Table 数量与论文一致,表号 1..N 齐全。
+3. **图表不重不漏**:Figure 与 Table 数量与论文一致,图注里的 `Figure N:` / `Table N:` 标签
+   1..N 不重不漏(校验器会 FAIL)。若某张图来自作者自绘而非论文,它**不占编号**、必须标
+   「本页自绘 / Self-drawn」并带 `data-selfchart="1"`(见第 8 条)。
 4. **表格一律用"图"呈现,禁止空表格壳**:每个 Table 页面呈现为
    `<div class="tbl-wrap"><figure class="fig"><img src="figs/tableN.png">…<figcaption>…</figcaption></figure></div>`
    ——图注(标题 + 中文解读)放 figcaption,里面是表格 300 DPI 原图;
@@ -67,7 +71,12 @@ python3 scripts/validate.py 你的页面.html
    术语速查这类真实数据表不受影响(须带 thead/tbody 内容行)。
 5. 文本/结构用文件写入,避免 heredoc 转义;超长 HTML 分 part1/part2 写后 cat 合并。
 6. **读者体验层(模板内置,校验器强制检查)**:深色模式(记忆偏好)、顶栏章节跳转、点击图片 lightbox 看原图、回到顶部、术语速查 + 正文 `<abbr>` 悬停释义、公式用 KaTeX 渲染(display $$…$$ + 内联 $…$)、og 分享标签、打印友好。
-7. **溯源标注(推荐,校验器 WARN 提醒)**:速览章"读数约定"(数字以原文为准,整理/推算显式标注)、上游方法的行内引用、点评章"技术来源一览"表与"未披露、值得补测"清单、每张图注末尾的原文页码(`span.pgref`,脚本注入)。详见 `SKILL.md` 的"溯源与深读增强"。
+8. **自绘图表与论文图表严格区分(可选能力)**:论文给不出一张关键对照/推导视图时,可按
+   `references/lieflat-charts.md` 自绘一张(选型与绘制走 lieflat-charts 法典)。三条硬规则:
+   **不占用 Figure/Table 编号**、**每个数字都能回到原文(推算标「整理/推算」,不得引入论文之外的数字)**、
+   **单文件可离线**(优先 SVG/PNG 放 `figs/` 用 `<img>` 引用)。校验器会检查标注与编号合规。
+   注意 lieflat-charts 是 **PolyForm Noncommercial(非商业)** 许可,只按依赖调用、不复制其代码进本仓库。
+9. **溯源标注(推荐,校验器 WARN 提醒)**:速览章"读数约定"(数字以原文为准,整理/推算显式标注)、上游方法的行内引用、点评章"技术来源一览"表与"未披露、值得补测"清单、每张图注末尾的原文页码(`span.pgref`,脚本注入)。详见 `SKILL.md` 的"溯源与深读增强"。
 
 ## 中英双语版(可选)
 
@@ -103,3 +112,9 @@ gh api -X POST repos/<user>/<PaperName>-Project-Page/pages \
 ## 许可证
 
 MIT。本仓库以"读者的使用体验"为第一优先级:任何环节让你困惑,欢迎开 issue 或 PR。
+
+**第三方依赖**:"本页自绘图表"能力**按依赖方式**对接 [lieflat-charts](https://github.com/) skill
+(图表选型 / 模板骨架 / 设计 token),其许可证为 **PolyForm Noncommercial License 1.0.0(非商业)**,
+与本仓库的 MIT 不同。因此本仓库**不包含、也不再分发**它的任何代码或模板文件——只规定对接方式
+(见 `references/lieflat-charts.md`)。若你要在商业场景使用自绘图表的产出,或要再分发 lieflat-charts
+本身,请自行核对其许可条款并署名其开发者(「躺在废墟里」)。

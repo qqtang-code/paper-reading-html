@@ -44,13 +44,22 @@ jobs:
       - name: Template sanity
         run: |
           python3 - <<'EOF'
-          import re
+          import re, os
           src = open("assets/template.html", encoding="utf-8").read()
           assert "max-width:100%" in src and "height:auto" in src, "template missing responsive img CSS"
           assert src.count("<figure class=\"fig\"") == src.count("</figure>"), "template figure mismatch"
           for m in re.finditer(r'<table\b[^>]*class="data"[^>]*>.*?</table>', src, re.S):
               assert re.search(r'<(thead|tbody|td|tr|th)\b', m.group(0)), "empty caption-shell table in template"
           print("template OK")
+
+          # the self-drawn-chart contract snippet must ship with its marker + label
+          for p in ["assets/chart-figure.html", "references/lieflat-charts.md"]:
+              assert os.path.exists(p), f"missing integration file: {p}"
+          c = open("assets/chart-figure.html", encoding="utf-8").read()
+          assert 'data-selfchart="1"' in c, "chart-figure.html missing data-selfchart marker"
+          assert "本页自绘" in c and "Self-drawn" in c, "chart-figure.html missing the self-drawn label"
+          assert not re.search(r'<b>(Figure|Table)\s*\d+:', c), "chart-figure.html must not carry an exhibit number"
+          print("self-drawn chart snippet OK")
           EOF
       - name: Validator regression (empty-shell detection)
         run: |
@@ -73,4 +82,63 @@ jobs:
               print("validator empty-shell regression OK")
           finally:
               os.unlink(path)
+          EOF
+      - name: Validator regression (exhibit numbering + self-drawn charts)
+        run: |
+          python3 - <<'EOF'
+          import re, subprocess, sys, tempfile, os
+
+          CSS = ('<style>figure.fig img{display:block;max-width:100%;height:auto;cursor:zoom-in}'
+                 'html[data-theme="dark"]{} @media print{}</style>')
+          HEAD = ('<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">'
+                  '<meta property="og:title" content="t">' + CSS + '</head><body>'
+                  '<nav class="topbar"><button class="theme-toggle">x</button></nav>')
+          TAIL = ('<button id="backTop">^</button><div id="lightbox"><button id="lbClose">x</button></div>'
+                  '<section id="s9">glossary</section><abbr title="x">FA</abbr>'
+                  '<div class="note">读数约定:…</div>'
+                  '<link href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">'
+                  '<script>renderMathInElement</script></body></html>')
+          FIG = ('<figure class="fig"><img src="figs/fig1.png">'
+                 '<figcaption><b>Figure 1:</b> cap <span class="pgref">报告 p.1</span></figcaption></figure>')
+          TABLE = ('<figure class="fig"><img src="figs/table1.png">'
+                   '<figcaption><b>Table 1:</b> cap <span class="pgref">报告 p.2</span></figcaption></figure>')
+          SELF_OK = ('<figure class="fig" data-selfchart="1"><img src="figs/chart-x.svg">'
+                     '<figcaption><b>本页自绘:</b>x <span class="pgref">据 Table 1 整理</span></figcaption></figure>')
+
+          def run(body):
+              with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False,
+                                               dir=".") as f:
+                  f.write(HEAD + body + TAIL); path = f.name
+              try:
+                  os.makedirs("figs", exist_ok=True)
+                  for n in ("fig1.png", "table1.png", "chart-x.svg"):
+                      open(os.path.join("figs", n), "wb").write(b"x")
+                  r = subprocess.run([sys.executable, "scripts/validate.py", path],
+                                     capture_output=True, text=True)
+                  return r.returncode, r.stdout + r.stderr
+              finally:
+                  os.unlink(path)
+
+          # a well-formed page (paper exhibit + self-drawn chart) must PASS outright,
+          # and must emit no self-drawn / numbering complaint
+          rc, out = run(FIG + TABLE + SELF_OK)
+          assert rc == 0, f"false positive on a well-formed page:\n{out}"
+          for bad in ("self-drawn chart #", "not 1..N complete"):
+              assert bad not in out, f"spurious complaint on a well-formed page: {bad}\n{out}"
+          assert "data-selfchart)=1" in out, f"self-drawn chart not summarised:\n{out}"
+          print("well-formed page (paper exhibits + self-drawn chart) passes OK")
+
+          cases = [
+              (FIG + TABLE + SELF_OK.replace("<b>本页自绘:</b>", "<b>My chart</b>"),
+               "missing the '本页自绘 / Self-drawn' label", "unlabelled self-drawn chart"),
+              (FIG + TABLE + SELF_OK.replace("<b>本页自绘:</b>", "<b>Table 2:</b>"),
+               "carries a paper exhibit number", "self-drawn chart consuming an exhibit number"),
+              (FIG + TABLE.replace("<b>Table 1:</b>", "<b>Figure 3:</b>") + SELF_OK,
+               "Figure labels not 1..N complete", "gap in paper exhibit numbering"),
+          ]
+          for body, needle, label in cases:
+              rc, out = run(body)
+              assert rc != 0 and needle in out, f"validator missed {label}:\n{out}"
+              print(f"validator caught {label} OK")
+          print("exhibit-numbering + self-drawn regression OK")
           EOF

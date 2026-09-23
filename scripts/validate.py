@@ -34,6 +34,32 @@ def main():
     if caps != list(range(1, len(caps) + 1)):
         problems.append(f"table captions not 1..N complete: {caps}")
 
+    # 3b. exhibit labels inside figcaptions (<b>Figure N:</b> / <b>Table N:</b>) must also
+    # run 1..N with no gaps or duplicates: these are the paper's own exhibits, and a
+    # missing or duplicated number means an exhibit was dropped or mislabelled.
+    for kind in ("Figure", "Table"):
+        labels = sorted(int(m.group(1)) for m in re.finditer(rf'<b>{kind}\s*(\d+):', src))
+        if labels != list(range(1, len(labels) + 1)):
+            problems.append(f"{kind} labels not 1..N complete: {labels}")
+
+    # 3c. self-drawn charts (data-selfchart): must announce themselves as the editor's
+    # work, and must NOT consume a Figure/Table number — otherwise the 1..N checks above
+    # break and readers mistake an editor's chart for one from the paper.
+    # Contract: references/lieflat-charts.md
+    selfcharts = re.findall(r'<figure class="fig"[^>]*data-selfchart[^>]*>.*?</figure>', src, re.S)
+    for i, blk in enumerate(selfcharts, 1):
+        cap = re.search(r'<figcaption>.*?</figcaption>', blk, re.S)
+        cap_txt = cap.group(0) if cap else ""
+        if not re.search(r'本页自绘|Self-drawn', cap_txt):
+            problems.append(f"self-drawn chart #{i} is missing the '本页自绘 / Self-drawn' "
+                            f"label in its figcaption (readers must be able to tell it apart "
+                            f"from the paper's own exhibits)")
+        numbered = re.search(r'<b>(Figure|Table)\s*(\d+):', cap_txt)
+        if numbered:
+            problems.append(f"self-drawn chart #{i} carries a paper exhibit number "
+                            f"({numbered.group(1)} {numbered.group(2)}) — self-drawn charts "
+                            f"must not consume the 1..N numbering; use a descriptive title")
+
     # 4. anchors
     ids = set(re.findall(r'id="([^"]+)"', src))
     hrefs = set(re.findall(r'href="#([^"]+)"', src))
@@ -127,12 +153,28 @@ def main():
         warns.append("source page refs in figcaptions (span.pgref) — run scripts/add_pagerefs.py")
     if not any(k in body for k in ('值得补测', '未披露', 'worth testing', 'Not disclosed')):
         warns.append("\"not disclosed / worth testing\" list in the commentary — recommended")
+    # every exhibit should be traceable to a source: either a paper Figure/Table label,
+    # or an explicit self-drawn label (see references/lieflat-charts.md)
+    unlabelled = 0
+    for m in re.finditer(r'<figure class="fig"[^>]*>(.*?)</figure>', src, re.S):
+        blk = m.group(1)
+        if re.search(r'<b>(Figure|Table|Algorithm)\s*\d+:', blk):
+            continue
+        if re.search(r'本页自绘|Self-drawn', blk):
+            continue
+        unlabelled += 1
+    if unlabelled:
+        warns.append(f"{unlabelled} figure(s) with no 'Figure N:' / 'Table N:' label and no "
+                     f"'本页自绘 / Self-drawn' marker — label every exhibit so readers know "
+                     f"whether it comes from the paper")
 
     if problems:
         print("FAIL"); [print(" -", p) for p in problems]
         [print("WARN (recommended):", w) for w in warns]
         sys.exit(1)
     print(f"PASS: figures={n_fig}, tables={len(caps)}, images={len(imgs)}, anchors ok")
+    if selfcharts:
+        print(f"      self-drawn charts (data-selfchart)={len(selfcharts)} — labelled, not consuming exhibit numbers")
     [print("WARN (recommended):", w) for w in warns]
 
 if __name__ == "__main__":

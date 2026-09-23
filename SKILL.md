@@ -7,7 +7,8 @@ description: >-
   产出"图文配合"的中文精读页面:全部图表按原文 300 DPI 高清提取、等比缩放不裁剪、图表随讲解段落
   内嵌(而非图表单列、文字单讲),并可将产物推送到远程 GitHub / GitHub Pages。可按需生成同目录
   英文版 en.html 与全站 中/EN 语言切换(pr-lang 偏好记忆)。适用于任何论文讲解
-  场景:即使只是一个链接或一句"帮我讲讲这篇",也用它。
+  场景:即使只是一个链接或一句"帮我讲讲这篇",也用它。论文缺少的关键对照/推导视图,可按本技能的
+  自绘图表规程(lieflat-charts 对接)补一张,并与原文图表严格区分。
 ---
 
 # 论文精读 HTML(Paper Reading HTML)
@@ -21,6 +22,8 @@ description: >-
 - `figs/`——全部图表,按原文版面 300 DPI 高清 PNG,等比展示不裁剪
 - 可选:`en.html`——同目录英文版(完整镜像或速读版),与中文页共用 `figs/`;
   配套全站 中/EN 语言切换(localStorage `pr-lang`,详见第 7 步)
+- 可选:`figs/chart-*.svg`——**本页自绘图表**(论文给不出、由你用 lieflat-charts 体系绘制),
+  必须标「本页自绘」且不占用论文图表编号(见第 5.5 步 / `references/lieflat-charts.md`)
 - 可选:推送 GitHub 仓库 + GitHub Pages 部署子路径
 
 ## 流程总览
@@ -30,6 +33,7 @@ description: >-
 3. 高 DPI 提取图表(核心:验证裁剪框 → 渲染 → 复核)
 4. 按"图文配合"结构撰写 HTML(模板在 `assets/template.html`)
 5. 校验(结构/锚点/图片/表格完整性)
+5.5 可选:论文给不出的关键视图,用 lieflat-charts 体系自绘并合规嵌入(见第 5.5 步)
 6. 可选:git 推送 + GitHub Pages 部署
 7. 可选:中英双语版(en.html + 语言切换器,见第 7 步)
 
@@ -174,14 +178,43 @@ python3 "$SKILL_DIR/scripts/validate.py" res.html
 ```
 
 检查:① 引用的每个 img 存在且无缺;② Figure 数、Table 数与论文一致;③ Table caption 编号
-1..N 完整、无重复;④ 所有 `href="#..."` 锚点存在;⑤ 标签开闭平衡;⑥ 每个 img 都带
+1..N 完整、无重复;③b 图注里的 `<b>Figure N:</b>` / `<b>Table N:</b>` 标签同样必须 1..N 不重不漏
+(漏一个编号 = 漏一张图表);④ 所有 `href="#..."` 锚点存在;⑤ 标签开闭平衡;⑥ 每个 img 都带
 `max-width:100%` 与 `height:auto`;⑦ 关键数字出现(抽查);⑧ **无"空表格壳"**——形如
 `<table class="data"><caption>…</caption></table>`、只有标题没有内容单元格的表格会被
 校验器判 FAIL(术语速查等真实数据表不受影响)。⑨ 页面里若存在语言切换器
 (`class="lang-toggle"` 的链接),其 `href` 指向的本地文件必须真实存在;⑩ `span.pgref` 要么每张
-图注都有、要么一张都没有(只标一部分判 FAIL)。全部 PASS 才可交付。
+图注都有、要么一张都没有(只标一部分判 FAIL)。⑪ **自绘图合规**——带 `data-selfchart` 的 figure
+必须在图注里标「本页自绘 / Self-drawn」,且**不得**使用 `Figure N:` / `Table N:` 编号(见第 5.5 步)。
+全部 PASS 才可交付。
 
-推荐项缺失不判 FAIL,以 `WARN (recommended)` 提示:读数约定 / 行内引用 / 原文页码 / 待补测清单。
+推荐项缺失不判 FAIL,以 `WARN (recommended)` 提示:读数约定 / 行内引用 / 原文页码 / 待补测清单 /
+没有来源标注的 figure(既无 `Figure N:` 也无「本页自绘」标记)。
+
+## 第 5.5 步(可选):本页自绘图表(对接 lieflat-charts)
+
+主题是**论文原图**;当论文给不出一张你需要的图时,才自绘。
+**完整规程见 [`references/lieflat-charts.md`](references/lieflat-charts.md)**,片段模板见
+[`assets/chart-figure.html`](assets/chart-figure.html)。要点:
+
+- **什么时候画**:关键数字散落在多张表里需要合并;论文只有数字没有图;需要一张"原文没有"的推导
+  视图(如把配置落到层号上的走查)。**论文已有对应图就不要重画** —— 原图是权威,重画会引入失真。
+- **三条硬规则**:
+  1. **不占用编号** —— 图注禁止以 `Figure N:` / `Table N:` 开头,必须标「本页自绘 / Self-drawn」,
+     并带 `data-selfchart="1"`(校验器据此判 FAIL);
+  2. **数据可溯源** —— 每个数字都要能指回原文某表/某页;跨表合并、换算一律标「整理」或「推算」;
+     **不得引入论文之外的任何数字**;
+  3. **单文件、可离线** —— 优先导出 SVG/PNG 放 `figs/` 用 `<img>` 引用(lightbox/打印/图片校验天然复用);
+     必须内联 HTML 图表时内联全部依赖,不引 CDN。
+- **选型与绘制交给 lieflat-charts skill**(用户级技能目录,通常是 `~/.agents/skills/lieflat-charts/`):
+  按 `catalog.md` 用**数据形状**选型 → 先审计 Lupi Editorial(L1–L19)与 Lupi Basics(F1–F17),各比较
+  至少 3 个并写下淘汰理由 → 才允许降到 Glance → 以锁定的 gallery 卡片为结构骨架改数据 → 从
+  `mono-tokens.js` 或**一套** `color-presets.js` 预设取色。未安装时降级为手写 SVG,仍须遵守上面三条。
+- **一页只用一套色彩系统**,且自绘图要同时适配深色与浅色模式。
+
+> ⚠️ **许可**:lieflat-charts 采用 **PolyForm Noncommercial License 1.0.0**(非商业),与本技能仓库的
+> MIT 不同 —— 因此**只按依赖调用,不把它的模板/代码复制进本仓库或产物再分发**。自绘图的成品可以随
+> 精读页发布(那是使用产出);若要再分发它的模板文件本身,需遵守其许可证并署名(开发者为「躺在废墟里」)。
 
 ## 第 6 步(可选):推送与 GitHub Pages 部署
 
@@ -352,8 +385,11 @@ gh api repos/<user>/<repo>/pages/builds/latest --jq '.status'   # 期望 "built"
 paper-reading-html/
 ├── SKILL.md                ← 本文件
 ├── README.md               ← 读者视角的使用指南(两种用法 + 铁律)
+├── references/
+│   └── lieflat-charts.md   ← 本页自绘图表的完整规程(何时画 + 交付契约 + 对接方式 + 许可)
 ├── assets/
 │   ├── template.html       ← HTML 骨架(样式 + 结构)
+│   ├── chart-figure.html   ← 自绘图表的插入片段(data-selfchart + 「本页自绘」标注)
 │   └── example_paper.pdf   ← CI 冒烟测试用样例论文
 ├── scripts/
 │   ├── locate_figs.py      ← 自动检测图表位置 → crops.json

@@ -1,0 +1,20 @@
+<!--
+  assets/chart-figure.html —— 本页自绘图表(self-drawn chart)的插入片段。
+
+  用法:整块复制到它所支撑的那段论证旁边,替换 src / alt / 标题 / 解读 / 来源。
+  契约详见 references/lieflat-charts.md,三条硬规则:
+    ① 图注禁止以 "Figure N:" / "Table N:" 开头(不占用论文图表编号)
+    ② 必须带 data-selfchart="1",并在图注里明示「本页自绘 / Self-drawn」
+    ③ 每个数字都要能指回原文某表/某页;推算处标「整理」或「推算」
+  校验:python3 scripts/validate.py 页面.html
+
+  英文页对应写法:<b>Self-drawn:</b> … · <span class="ex">…</span>
+-->
+<figure class="fig" data-selfchart="1">
+  <img src="figs/chart-CHANGE-ME.svg" alt="本页自绘:一句话说清这张图在证明什么">
+  <figcaption>
+    <b>本页自绘:</b><描述性标题,说结论不说图型名>
+    <span class="zh"><读图指引:先讲轴与单位,再逐项讲图里能看出什么;数据取自论文哪张表。推算/合并的部分标注「整理」或「推算」,并给出换算过程。></span>
+    <span class="pgref">据 Table N(报告 p.X)整理</span>
+  </figcaption>
+</figure>
