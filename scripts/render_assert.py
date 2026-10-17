@@ -65,18 +65,68 @@ def strip_source_noise(src):
 
 
 def amounts_from_source(body):
-    """Distinct ``$1.23``-style amounts in the (noise-stripped) source."""
+    """Distinct ``$1.23``-style amounts in the (noise-stripped) source.
+
+    A leading ``$`` followed by digits is only a *dollar amount* when it is not
+    really the opening of an inline math span. ``$24.00/6.31 = 3.80$``,
+    ``$2 \\times 128 = 32768$`` and ``$0.1$`` are formulas whose first token
+    happens to be a number; naively treating them as prices produced 17 phantom
+    "swallowed dollar amount" failures on a real page whose every ``$`` was math.
+
+    Rejection rules, in order:
+      * the span closes immediately (``$0.1$``) - a one-token formula;
+      * the digit run continues into an operator (``$2 \\times``, ``$10^{-3}``,
+        ``$24.00/6.31``);
+      * the ``$`` opens a span that closes on the same line - the standard inline
+        math shape. A genuine price is never followed by another ``$`` before the
+        line ends, so this is the decisive test.
+    """
     found = set()
     for m in re.finditer(r"\$(\d[\d,]*(?:\.\d+)?)", body):
+        tail = body[m.end():m.end() + 4]
+        if tail.startswith("$") or re.match(r"\s*(?:[/=+*-\u00d7^<>)\}]|\\)", tail):
+            continue
+        line_end = body.find("\n", m.end())
+        line_end = len(body) if line_end == -1 else line_end
+        if "$" in body[m.end():line_end]:
+            continue
         found.add("$" + m.group(1).rstrip(".,"))
     return found
 
 
-def count_math_sites(body):
-    """Number of display + inline math expressions the renderer should typeset."""
+def count_math_sites(body, single_dollar_enabled=True):
+    """Number of math expressions the renderer should typeset.
+
+    Three delimiter families exist: ``$$...$$`` (display), ``\\(...\\)`` (inline)
+    and single-``$...$`` (inline, the template default). Which ones are live
+    depends on the page's ``renderMathInElement`` config:
+
+      * default template          -> ``$$`` and ``$`` are math
+      * paper quotes USD amounts  -> the ``$`` entry is removed and inline math is
+                                     written ``\\(...\\)``; a single ``$`` is then a
+                                     *currency sign*, and pairing two of them as a
+                                     formula is what produced the original bug this
+                                     script exists to catch.
+
+    Counting single-``$`` pairs on the second kind of page reported "expected 31"
+    against 8 real KaTeX nodes. So the caller passes whether the page registers the
+    ``$`` delimiter, and single-``$`` spans are counted only when it does.
+    """
     display = len(re.findall(r"\$\$.+?\$\$", body, flags=re.S))
-    inline = len(re.findall(r"\\\(.+?\\\)", body, flags=re.S))
-    return display + inline
+    inline_paren = len(re.findall(r"\\\(.+?\\\)", body, flags=re.S))
+    if not single_dollar_enabled:
+        return display + inline_paren
+    no_display = re.sub(r"\$\$.+?\$\$", " ", body, flags=re.S)
+    single = len(re.findall(r"(?<!\$)\$(?!\$)[^$\n]+?(?<!\$)\$(?!\$)", no_display))
+    return display + inline_paren + single
+
+
+def single_dollar_math(src):
+    """True when the page's KaTeX auto-render config registers ``$`` as a delimiter."""
+    m = re.search(r"delimiters\s*:\s*\[(.*?)\]\s*[,}]", src, flags=re.S)
+    if not m:
+        return False          # config removed/unreadable: treat $ as currency
+    return bool(re.search(r"left\s*:\s*['\"]\$['\"]", m.group(1)))
 
 
 def preflight(html_path, src):
@@ -114,7 +164,7 @@ def run_checks(html_path, src):
 
     body = strip_source_noise(src)
     expect_amounts = amounts_from_source(body)
-    expect_math = count_math_sites(body)
+    expect_math = count_math_sites(body, single_dollar_math(src))
 
     fails, warns, facts = [], [], {}
     with sync_playwright() as p:

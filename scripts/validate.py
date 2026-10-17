@@ -284,6 +284,33 @@ def validate_one(path, siblings=()):
     if missing_feats:
         problems.append(f"missing reader-experience features: {missing_feats}")
 
+    # 7c. v2.1 reading-comfort layer. Checked as WARN, not FAIL: pages produced by an
+    # older template are still perfectly readable, and forcing a rebuild of every
+    # archived page just to pick these up would churn the collection. A page that
+    # *claims* the new features but wires them wrong is caught below instead.
+    v21 = {
+        "阅读进度条 (#readProgress)": 'id="readProgress"' in src,
+        "窄屏章节条 (.linkbar)": 'class="linkbar"' in src,
+        "图注层级 (分割线而非卡片)":
+            "figure.fig figcaption" in src and "border-top:1px solid var(--border)" in src,
+    }
+    missing_v21 = [k for k, ok in v21.items() if not ok]
+    if missing_v21:
+        warns.append(f"v2.1 阅读体验件缺失(旧模板产物可忽略,新页面建议补全):{missing_v21}")
+
+    # 7d. .linkbar must mirror .jump anchors: the phone navigator is a separate
+    # element, so adding a section to one and forgetting the other leaves that
+    # section unreachable on mobile — a silent, hard-to-notice defect.
+    jump_hrefs = re.findall(r'<a class="jump" href="#([^"]+)"', src)
+    bar_blk = re.search(r'<div class="linkbar".*?</div>', src, re.S)
+    if jump_hrefs and bar_blk:
+        bar_hrefs = re.findall(r'href="#([^"]+)"', bar_blk.group(0))
+        if jump_hrefs != bar_hrefs:
+            problems.append(
+                f"topbar .jump anchors {jump_hrefs} != .linkbar anchors {bar_hrefs} — "
+                f"the two chapter navigators must list the same sections in the same order, "
+                f"otherwise some sections are unreachable on phones")
+
     # 7b. language switcher: a lang-toggle link must point at an existing local file
     # (a switcher whose href 404s is a broken bilingual edition; the portal's
     # <button class="lang-toggle"> is inline-i18n and has no href, so it's skipped)
