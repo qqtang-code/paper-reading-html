@@ -52,7 +52,7 @@ except ImportError:  # pragma: no cover - only hit on a broken install
 # Tunables
 # ---------------------------------------------------------------------------
 
-CAPTION_RE = re.compile(r"^\s*(Figure|Table|Algorithm)\s+(\d+)\s*[:.]", re.IGNORECASE)
+CAPTION_RE = re.compile(r"^\s*(Figure|Table|Algorithm)\s+(\d+)\s*[:.](?!\d)", re.IGNORECASE)
 
 DEFAULT_MARGIN = 45.0   # pt removed from every page edge (header/footer guard)
 DEFAULT_GAP = 14.0      # pt; a blank run longer than this ends a body band
@@ -637,14 +637,15 @@ def _process_page(page: "fitz.Page", page_index: int, margin: float,
     at the end, which is what ``extract_figs.py`` crops from.
     """
     rotation = page.rotation
-    matrix = page.rotation_matrix if rotation else None
-    if rotation:
+    matrix = (page.rotation_matrix
+              if rotation and hasattr(page, "rotation_matrix") else None)
+    if rotation and matrix is not None:
         page.set_rotation(0)
     try:
         crops = _process_page_unrotated(page, page_index, margin, gap,
                                         include_caption)
     finally:
-        if rotation:
+        if rotation and matrix is not None:
             page.set_rotation(rotation)
 
     if matrix is not None:
@@ -681,7 +682,9 @@ def _process_page_unrotated(page: "fitz.Page", page_index: int, margin: float,
         up_limit, down_limit = _caption_limits(caption, captions, band, body)
         counts = ink.row_counts(band.x0, band.x1)
 
-        primary = "up" if caption.kind in ("figure", "algorithm") else "down"
+        # Figures normally have their caption below the artwork; tables and
+        # algorithms normally have it above the block.
+        primary = "up" if caption.kind == "figure" else "down"
         secondary = "down" if primary == "up" else "up"
 
         first_limit = up_limit if primary == "up" else down_limit
