@@ -309,7 +309,7 @@ jobs:
           # A collection is a monorepo of reading pages. The failure modes this
           # guards are the ones a human eye misses: duplicated circled numbers on
           # the portal, and hero statistics that drifted away from what is on disk.
-          def build(root, second_number="②", stats=(2, 1, 1)):
+          def build(root, second_number="②", stats=(2, 1, 1), swap_readme=False):
               r = pathlib.Path(root)
               def w(rel, s):
                   p = r / rel; p.parent.mkdir(parents=True, exist_ok=True)
@@ -334,9 +334,10 @@ jobs:
                   return (f'| {n} | **{name}** | [x](cat/) | tag | '
                           f'[中](cat/{slug}/) · [EN](cat/{slug}/en.html) | 2026-01 | '
                           f'{fig} 图 {tab} 表 | [arXiv](https://example.org/abs/1) |\n')
+              first = row(1, "Paper B", "paper-b", 0, 1) if swap_readme else row(1, "Paper A", "paper-a", 1, 0)
+              second = row(2, "Paper A", "paper-a", 1, 0) if swap_readme else row(2, "Paper B", "paper-b", 0, 1)
               w("README.md", "# C\n\n## 论文总览\n\n| # | 论文 | 分类 | 标签 | 语言 | 时间 | 图表 | 原文 |\n"
-                "|---|---|---|---|---|---|---|---|\n"
-                + row(1, "Paper A", "paper-a", 1, 0) + row(2, "Paper B", "paper-b", 0, 1))
+                "|---|---|---|---|---|---|---|---|\n" + first + second)
               w("cat/README.md", "# cat\n\n| 论文 | 主题 | 中文 | EN |\n|---|---|---|---|\n"
                 "| Paper A | t | [paper-a/](paper-a/) | [en](paper-a/en.html) |\n"
                 "| Paper B | t | [paper-b/](paper-b/) | [en](paper-b/en.html) |\n")
@@ -356,6 +357,13 @@ jobs:
               rc, out = run(dup)
               assert rc != 0, f"check_collection missed a duplicated card number:\n{out}"
               print("check_collection caught the duplicated card number OK")
+
+              swapped = os.path.join(d, "swapped"); build(swapped, swap_readme=True)
+              rc, out = run(swapped)
+              assert rc != 0 and "disagree with the portal card numbers" in out, (
+                  f"check_collection missed README rows whose numbers drifted from the "
+                  f"portal cards:\n{out}")
+              print("check_collection caught README/card number drift OK")
 
               drift = os.path.join(d, "drift"); build(drift, stats=(9, 7, 3))
               rc, out = run(drift)

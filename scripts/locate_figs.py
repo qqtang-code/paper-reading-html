@@ -19,7 +19,7 @@ How it works
 1. Captions are anchored on text *blocks* whose text starts with
    ``Figure|Table|Algorithm <n>:`` -- not on every word "Figure" in the body.
 2. The page is split into columns from the x gaps between text lines.  A
-   caption that is wider than 65% of the text block gets the full page width.
+   caption that is wider than 65% of the text area gets the full page width.
 3. A 150-DPI ink map of the caption's column is scanned outwards from the
    caption.  The contiguous run of ink rows (bridging ordinary inter-line
    whitespace) is the figure/table body.  This works for raster, vector and
@@ -76,7 +76,7 @@ _INK_TABLE = bytes(255 if value >= INK_CUTOFF else 0 for value in range(256))
 
 @dataclass
 class Caption:
-    """A real caption block (not a in-text reference)."""
+    """A real caption block (not an in-text reference)."""
 
     kind: str
     number: int
@@ -95,7 +95,8 @@ class SideInfo:
     found: bool = False
     first: Optional[float] = None
     prose: bool = False
-    strength: int = 0
+    lines: int = 0
+    graphics: int = 0
 
 
 @dataclass
@@ -384,22 +385,30 @@ def _column_band(caption: Caption, body: "fitz.Rect",
             return full
 
     if side == "left":
+        edges: List[float] = []
         right = [rect for rect, _ in local if rect.x0 >= caption.rect.x1]
         if right:
-            x1 = min(rect.x0 for rect in right) - 1.0
-            if x1 > body.x0 + 0.25 * body.width:
+            edges.append(min(rect.x0 for rect in right) - 1.0)
+        if gutter is not None and caption.rect.x1 <= gutter[0] + 2.0:
+            edges.append(gutter[0] - 1.0)
+        if edges:
+            x1 = max(edges)
+            if (x1 > body.x0 + 0.25 * body.width
+                    and x1 - caption.rect.x1 <= 150.0):
                 return "left", fitz.Rect(body.x0, body.y0, x1, body.y1)
-        if gutter is not None and caption.rect.x1 <= gutter[0]:
-            return "left", fitz.Rect(body.x0, body.y0, gutter[0] - 1.0, body.y1)
         return full
 
+    edges = []
     left = [rect for rect, _ in local if rect.x1 <= caption.rect.x0]
     if left:
-        x0 = max(rect.x1 for rect in left) + 1.0
-        if x0 < body.x1 - 0.25 * body.width:
+        edges.append(max(rect.x1 for rect in left) + 1.0)
+    if gutter is not None and caption.rect.x0 >= gutter[1] - 2.0:
+        edges.append(gutter[1] + 1.0)
+    if edges:
+        x0 = min(edges)
+        if (x0 < body.x1 - 0.25 * body.width
+                and caption.rect.x0 - x0 <= 150.0):
             return "right", fitz.Rect(x0, body.y0, body.x1, body.y1)
-    if gutter is not None and caption.rect.x0 >= gutter[1]:
-        return "right", fitz.Rect(gutter[1] + 1.0, body.y0, body.x1, body.y1)
     return full
 
 
@@ -549,7 +558,7 @@ def _analyse_side(ink: InkMap, counts: Sequence[int], band: "fitz.Rect",
         if rect.intersects(probe) and rect.width > 2 and rect.height > 2
     )
     return SideInfo(found=True, first=y0, prose=prose,
-                    strength=len(nearby) + graphics_near)
+                    lines=len(nearby), graphics=graphics_near)
 
 
 def _aggregate_body(ink: InkMap, counts: Sequence[int], band: "fitz.Rect",
@@ -620,7 +629,34 @@ def _caption_limits(caption: Caption, captions: Sequence[Caption],
 
 def _process_page(page: "fitz.Page", page_index: int, margin: float,
                   gap: float, include_caption: bool) -> List[Crop]:
-    """Locate every caption on one page and build its crop."""
+    """Locate every caption on one page and build its crop.
+
+    Pages with a /Rotate flag are processed as if unrotated (text and drawing
+    coordinates are unrotated in PyMuPDF, and figures are sideways after
+    rotation).  The finished rectangles are mapped back to display coordinates
+    at the end, which is what ``extract_figs.py`` crops from.
+    """
+    rotation = page.rotation
+    matrix = page.rotation_matrix if rotation else None
+    if rotation:
+        page.set_rotation(0)
+    try:
+        crops = _process_page_unrotated(page, page_index, margin, gap,
+                                        include_caption)
+    finally:
+        if rotation:
+            page.set_rotation(rotation)
+
+    if matrix is not None:
+        display_body = _body_rect(page, margin)
+        for crop in crops:
+            crop.rect = _round_rect(_clamp(crop.rect * matrix, display_body))
+    return crops
+
+
+def _process_page_unrotated(page: "fitz.Page", page_index: int, margin: float,
+                            gap: float, include_caption: bool) -> List[Crop]:
+    """Worker for :func:`_process_page` (page is already unrotated)."""
     body = _body_rect(page, margin)
     if body.width < 20 or body.height < 20:
         return []
@@ -656,17 +692,16 @@ def _process_page(page: "fitz.Page", page_index: int, margin: float,
                                        second_limit, initial_gap, lines, graphics)
 
         if not primary_info.found:
-            if secondary_info.found:
-                side, info = secondary, secondary_info
-            else:
-                side, info = None, None
+            side = secondary if secondary_info.found else None
         elif (primary_info.prose and secondary_info.found
-              and not secondary_info.prose and secondary_info.strength >= 2):
+              and not secondary_info.prose
+              and (secondary_info.lines >= 2
+                   or secondary_info.graphics >= 1)):
             # Caption on the "wrong" side of a conventional layout (e.g. a
             # table caption below the table, or a figure caption above it).
-            side, info = secondary, secondary_info
+            side = secondary
         else:
-            side, info = primary, primary_info
+            side = primary
 
         flags: List[str] = []
         body_band: Optional["fitz.Rect"] = None
@@ -819,7 +854,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 print(f"[warn] page {page_index + 1}: {exc}", file=sys.stderr)
                 continue
             for crop in page_crops:
+                original_key = crop.key
                 crop.key = _unique_key(crop.key, used_keys)
+                if crop.key != original_key:
+                    print(f"[warn] duplicate caption {original_key} on page "
+                          f"{page_index + 1}; storing as {crop.key}",
+                          file=sys.stderr)
                 used_keys.add(crop.key)
                 crops.append(crop)
     finally:

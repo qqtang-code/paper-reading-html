@@ -30,6 +30,8 @@ B. Paper set
 
 C. ``root/README.md``
    * the ``论文总览`` table's row numbers are 1..N;
+   * each row's number equals that paper's portal card number (a table can be
+     1..N with the right papers yet assign the numbers to the wrong rows);
    * every paper link in those rows resolves to a paper directory;
    * README papers are compared with the portal-card set (missing README rows
      are a warning; extra or broken rows are failures);
@@ -874,6 +876,7 @@ def check_readme_table(
         "all_rows_linked": False,
         "extra_papers": [],
         "missing_papers": [],
+        "number_mismatch": [],
         "broken_links": [],
     }
     if not readme_path.is_file():
@@ -1070,6 +1073,50 @@ def check_readme_table(
     readme_set = set(by_paper.keys())
     card_set = set(card_papers)
 
+    # Cross-check: the number printed in a README row must be the SAME number the
+    # portal gives that paper. Row-number continuity plus set alignment cannot
+    # catch this: a table can be numbered 1..N with the right papers, yet assign
+    # the numbers to the wrong rows. That drift shipped for real once (README had
+    # LongHarness=13 / MMLongEmbed=14 while the portal had MMLongEmbed ⑬ /
+    # LongHarness ⑭), so it is checked explicitly.
+    card_number_by_paper = {
+        card.paper_dir: card.number
+        for card in cards
+        if card.paper_dir is not None and card.number is not None
+    }
+    mismatches: List[Tuple[ReadmeRow, int]] = []
+    for row in rows:
+        if row.paper_dir is None:
+            continue
+        card_number = card_number_by_paper.get(row.paper_dir)
+        if card_number is not None and card_number != row.number:
+            mismatches.append((row, card_number))
+    result["number_mismatch"] = [
+        {
+            "row": row.number,
+            "portal": card_number,
+            "paper": rel(root, row.paper_dir),
+            "line": row.line,
+        }
+        for row, card_number in mismatches
+    ]
+    if mismatches:
+        pieces = [
+            "row {} ({}) should be {} to match the portal card for {}".format(
+                row.number,
+                row.name,
+                circled(card_number),
+                rel(root, row.paper_dir),
+            )
+            for row, card_number in mismatches[:8]
+        ]
+        report.fail(
+            "readme.number_mismatch",
+            "README 论文总览 row numbers disagree with the portal card numbers: "
+            + "; ".join(pieces),
+            mismatches=result["number_mismatch"],
+        )
+
     extra = sorted(readme_set - card_set, key=str)
     missing = sorted(card_set - readme_set, key=str)
     result["extra_papers"] = [rel(root, p) for p in extra]
@@ -1102,6 +1149,7 @@ def check_readme_table(
         and not extra
         and not missing
         and not broken_links
+        and not mismatches
     ):
         report.ok_line(
             "README 论文总览: {} rows, aligned with {} portal cards".format(
