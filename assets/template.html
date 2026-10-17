@@ -293,6 +293,27 @@
 </footer>
 
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js" integrity="sha384-cMkvdD8LoxVzGF/RPUKAcvmm49FQ0oxwDF3BGKtDXcEc+T1b2N+teh/OJfpU0jr6" crossorigin="anonymous"></script>
+<!--
+  MAINTAINER NOTE — inline-math delimiter vs literal dollar signs
+  ==============================================================
+  The auto-render config below registers both $$...$$ (display) and a single-dollar
+  inline delimiter. The single-dollar form is fine for a page whose only dollar
+  signs are math, but it silently corrupts any page that also quotes USD costs:
+  the renderer pairs the dollar signs of two amounts into one formula and typesets
+  all the prose between them as italic gibberish. The source stays 100% valid
+  HTML, so structural checks cannot see it — only a browser can.
+
+  RULE: if the paper reports costs / prices / dollar amounts in the prose, delete
+        the single-dollar entry below and write inline math as \( ... \).
+        Keep $$...$$ for display math.
+
+  Why the default is not removed here: many pages legitimately use single-dollar
+  math, and dropping the delimiter would turn every one of those into literal
+  text. So the default stays and two checks guard the edge:
+    * scripts/validate.py      — flags source-level single-dollar vs prose-amount conflicts
+    * scripts/render_assert.py — loads the page in Chromium and asserts every
+                                 amount still appears literally in the rendered text
+-->
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/contrib/auto-render.min.js" integrity="sha384-hCXGrW6PitJEwbkoStFjeJxv+fSOOQKOPbJxSfM6G5sWZjAyWhXiTIIAmQqnlLlh" crossorigin="anonymous" onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});"></script>
 <script>
 (function(){

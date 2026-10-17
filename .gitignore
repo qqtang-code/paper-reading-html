@@ -1,0 +1,7 @@
+# CI / local smoke-test artifacts (locate_figs + extract_figs write these to the
+# working directory). They are regenerated from assets/example_paper.pdf.
+/crops.json
+/figs/
+__pycache__/
+*.pyc
+.DS_Store

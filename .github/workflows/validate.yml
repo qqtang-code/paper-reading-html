@@ -144,3 +144,222 @@ jobs:
               print(f"validator caught {label} OK")
           print("exhibit-numbering + self-drawn regression OK")
           EOF
+
+      - name: Validator regression ($..$ inline math vs literal USD amounts)
+        run: |
+          python3 - <<'EOF'
+          import subprocess, sys, tempfile, os
+
+          # A page that reports USD costs while KaTeX uses $..$ as an inline
+          # delimiter: the source is valid HTML and every structural check passes,
+          # but the renderer pairs the amount dollar signs and mangles the prose.
+          # validate.py must catch the conflict; a page whose dollars are genuine
+          # math must NOT be flagged (false positives would punish correct pages).
+          CSS = ('<style>figure.fig img{max-width:100%;height:auto}'
+                 'html[data-theme="dark"]{} @media print{}</style>')
+          HEAD = ('<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">'
+                  '<meta property="og:title" content="t">' + CSS + '</head><body>'
+                  '<nav class="topbar"><button class="theme-toggle">x</button></nav>'
+                  '<abbr title="x">FA</abbr><div class="note">读数约定:…</div>'
+                  '<section id="s9">glossary</section><button id="backTop">^</button>'
+                  '<div id="lightbox"><button id="lbClose">x</button></div>'
+                  '<link href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">')
+          TAIL = '</body></html>'
+          # the delimiter declaration lives inside a <script>, exactly like a real page
+          DELIM = ('<script>renderMathInElement(document.body,{delimiters:['
+                   "{left:'$$',right:'$$',display:true},"
+                   "{left:'$',right:'$',display:false}]});</script>")
+
+          def run(body):
+              with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as f:
+                  f.write(HEAD + body + DELIM + TAIL); path = f.name
+              try:
+                  r = subprocess.run([sys.executable, "scripts/validate.py", path],
+                                     capture_output=True, text=True)
+                  return r.returncode, r.stdout + r.stderr
+              finally:
+                  os.unlink(path)
+
+          # an even number of amounts -> pairing spans prose -> "USD amount"
+          cost = ('<p>RLM reaches 92% at $7.23 while mini-swe-agent reaches 100% at '
+                  '$0.583, and OpenCode costs $3.11 versus $0.690.</p>')
+          rc, out = run(cost)
+          assert rc != 0, f"validator missed the $..$ vs USD-amount conflict:\n{out}"
+          assert "USD amount" in out, f"wrong diagnosis for the dollar conflict:\n{out}"
+          print("validator caught the $..$ vs USD-amount conflict OK")
+
+          # genuine math with the same delimiter must stay clean
+          math_ok = ('<p>About $2 \\times 2304 \\times 1024 \\approx 4.72$M '
+                     'parameters over $18$ layers.</p>')
+          rc, out = run(math_ok)
+          assert "USD amount" not in out and "unbalanced" not in out, (
+              f"false positive on a page whose dollars are all genuine math:\n{out}")
+          print("no false positive on a math-only page OK")
+
+          # an odd number of dollar signs cannot pair up: clearer, separate diagnosis
+          odd = '<p>Cost $0.583 and $7.23 here, plus a stray $ mark.</p>'
+          rc, out = run(odd)
+          assert rc != 0 and "unbalanced" in out, f"validator missed unbalanced $:\n{out}"
+          print("validator caught unbalanced $ OK")
+          EOF
+
+      - name: verify_crops end-to-end on the example paper
+        run: |
+          python3 - <<'EOF'
+          import json, subprocess, sys, os, shutil, tempfile
+
+          work = tempfile.mkdtemp()
+          pdf = "assets/example_paper.pdf"
+          crops, figs = os.path.join(work, "crops.json"), os.path.join(work, "figs")
+          shutil.copy(pdf, work)
+
+          r = subprocess.run([sys.executable, "scripts/locate_figs.py", pdf, crops],
+                             capture_output=True, text=True)
+          assert r.returncode == 0, f"locate_figs failed:\n{r.stdout}\n{r.stderr}"
+          data = json.load(open(crops))
+          assert data, "locate_figs produced no crops on the example paper"
+          r = subprocess.run([sys.executable, "scripts/extract_figs.py", pdf, crops, figs],
+                             capture_output=True, text=True)
+          assert r.returncode == 0, f"extract_figs failed:\n{r.stdout}\n{r.stderr}"
+
+          run = lambda c: subprocess.run(
+              [sys.executable, "scripts/verify_crops.py", pdf, c,
+               "--figs", figs, "--no-caption"],
+              capture_output=True, text=True)
+
+          r = run(crops)
+          assert r.returncode == 0, f"verify_crops rejected a fresh, consistent set:\n{r.stdout}"
+          print(f"verify_crops PASS on {len(data)} freshly extracted crops")
+
+          # off-by-one page number must be caught even though PNG sizes still match
+          bad = json.loads(open(crops).read())
+          first = sorted(bad)[0]
+          bad[first]["page"] = bad[first]["page"] + 1 if bad[first]["page"] + 1 < 5 else 0
+          bad_path = os.path.join(work, "bad.json")
+          json.dump(bad, open(bad_path, "w"))
+          r = run(bad_path)
+          assert r.returncode != 0, ("verify_crops missed an off-by-one page index:\n"
+                                     + r.stdout)
+          print("verify_crops caught the off-by-one page index OK")
+
+          shutil.rmtree(work)
+          EOF
+
+      - name: render_assert catches the KaTeX dollar-delimiter bug
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+          python3 - <<'EOF'
+          import os, subprocess, sys, tempfile
+
+          # The bug is invisible to source checks, so this asserts the render-level
+          # gate both ways: it must FAIL on the broken page and PASS on the fixed one.
+          KATEX_HEAD = (
+              '<!DOCTYPE html><html><head><meta charset="utf-8">'
+              '<link rel="stylesheet" '
+              'href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">'
+              '<script defer '
+              'src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js"></script>')
+
+          def page(delimiters, body):
+              return (KATEX_HEAD
+                      + '<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/'
+                        'contrib/auto-render.min.js" onload="renderMathInElement('
+                        "document.body,{delimiters:" + delimiters + '});"></script>'
+                      + '</head><body>' + body + '</body></html>')
+
+          BOTH = ("[{left:'$$',right:'$$',display:true},"
+                  "{left:'$',right:'$',display:false}]")
+          # the recommended fix: keep display math, register the LaTeX-style
+          # inline pair instead of the ambiguous single dollar
+          INLINE_SAFE = ("[{left:'$$',right:'$$',display:true},"
+                         "{left:'\\\\(',right:'\\\\)',display:false}]")
+          PROSE = ('<p>RLM reaches 92% at $7.23 while mini-swe-agent reaches 100% at '
+                   '$0.583.</p>')
+
+          BROKEN = page(BOTH, PROSE + '<p>If the values $x_1$ and $x_2$ differ it changes.</p>')
+          FIXED = page(INLINE_SAFE,
+                       PROSE + '<p>If the values \\(x_1\\) and \\(x_2\\) differ it changes.</p>')
+
+          def run(html):
+              with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as f:
+                  f.write(html); path = f.name
+              try:
+                  r = subprocess.run([sys.executable, "scripts/render_assert.py", path],
+                                     capture_output=True, text=True)
+                  return r.returncode, r.stdout + r.stderr
+              finally:
+                  os.unlink(path)
+
+          rc, out = run(BROKEN)
+          assert rc == 1, f"render_assert did not FAIL on the broken page (rc={rc}):\n{out}"
+          assert "dollar amount" in out, f"wrong diagnosis:\n{out}"
+          print("render_assert caught the swallowed dollar amounts OK")
+
+          rc, out = run(FIXED)
+          assert rc == 0, f"render_assert false-positive on the fixed page (rc={rc}):\n{out}"
+          print("render_assert accepted the fixed page OK")
+          EOF
+
+      - name: check_collection consistency gate
+        run: |
+          python3 - <<'EOF'
+          import os, pathlib, subprocess, sys, tempfile
+
+          # A collection is a monorepo of reading pages. The failure modes this
+          # guards are the ones a human eye misses: duplicated circled numbers on
+          # the portal, and hero statistics that drifted away from what is on disk.
+          def build(root, second_number="②", stats=(2, 1, 1)):
+              r = pathlib.Path(root)
+              def w(rel, s):
+                  p = r / rel; p.parent.mkdir(parents=True, exist_ok=True)
+                  p.write_text(s, encoding="utf-8")
+              def card(num, name, slug):
+                  return ('<div class="pcard"><span class="cat">tag</span><h3>'
+                          f'<a class="i18n-zh" href="cat/{slug}/">{num} {name}</a>'
+                          f'<a class="i18n-en" href="cat/{slug}/en.html">{num} {name}</a>'
+                          '</h3></div>\n')
+              papers, tables = stats[1], stats[2]
+              w("index.html", '<!DOCTYPE html><html lang="zh-CN"><body>\n'
+                f'<div>论文 <b>{stats[0]}</b> 篇 · 图表 <b>{papers}</b> 图 + <b>{tables}</b> 表</div>\n'
+                '<div class="cards">\n' + card("①", "Paper A", "paper-a")
+                + card(second_number, "Paper B", "paper-b") + '</div></body></html>')
+              for slug, asset, fig, tab in (("paper-a", "fig1.png", 1, 0),
+                                            ("paper-b", "table1.png", 0, 1)):
+                  w(f"cat/{slug}/index.html", "<!DOCTYPE html><html><body>p</body></html>")
+                  w(f"cat/{slug}/en.html", "<!DOCTYPE html><html><body>p</body></html>")
+                  d = r / f"cat/{slug}/figs"; d.mkdir(parents=True, exist_ok=True)
+                  (d / asset).write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 64)
+              def row(n, name, slug, fig, tab):
+                  return (f'| {n} | **{name}** | [x](cat/) | tag | '
+                          f'[中](cat/{slug}/) · [EN](cat/{slug}/en.html) | 2026-01 | '
+                          f'{fig} 图 {tab} 表 | [arXiv](https://example.org/abs/1) |\n')
+              w("README.md", "# C\n\n## 论文总览\n\n| # | 论文 | 分类 | 标签 | 语言 | 时间 | 图表 | 原文 |\n"
+                "|---|---|---|---|---|---|---|---|\n"
+                + row(1, "Paper A", "paper-a", 1, 0) + row(2, "Paper B", "paper-b", 0, 1))
+              w("cat/README.md", "# cat\n\n| 论文 | 主题 | 中文 | EN |\n|---|---|---|---|\n"
+                "| Paper A | t | [paper-a/](paper-a/) | [en](paper-a/en.html) |\n"
+                "| Paper B | t | [paper-b/](paper-b/) | [en](paper-b/en.html) |\n")
+
+          def run(root):
+              r = subprocess.run([sys.executable, "scripts/check_collection.py", str(root)],
+                                 capture_output=True, text=True)
+              return r.returncode, r.stdout + r.stderr
+
+          with tempfile.TemporaryDirectory() as d:
+              good = os.path.join(d, "good"); build(good)
+              rc, out = run(good)
+              assert rc == 0, f"check_collection false-positive on a consistent fixture:\n{out}"
+              print("check_collection PASS on a consistent collection OK")
+
+              dup = os.path.join(d, "dup"); build(dup, second_number="①")
+              rc, out = run(dup)
+              assert rc != 0, f"check_collection missed a duplicated card number:\n{out}"
+              print("check_collection caught the duplicated card number OK")
+
+              drift = os.path.join(d, "drift"); build(drift, stats=(9, 7, 3))
+              rc, out = run(drift)
+              assert rc != 0 and "stats" in out.lower(), (
+                  f"check_collection missed drifted statistics:\n{out}")
+              print("check_collection caught drifted statistics OK")
+          EOF

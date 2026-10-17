@@ -21,36 +21,49 @@ mkdir -p ~/.agents/skills && git clone https://github.com/qqtang-code/paper-read
 
 ## 用法(B 方案:手动使用)
 
-不依赖 Agent 时,三个脚本可独立工作:
+不依赖 Agent 时,脚本可独立串联:
 
 ```bash
 # 1. 下载论文
 curl -sL -o paper.pdf "https://arxiv.org/pdf/XXXX.XXXXX"
 
-# 2. 自动定位图表 → 生成 crops.json(每个 Figure/Table 的裁剪框)
+# 2. 定位图表 → crops.json(图注锚定、双栏感知、输出真实编号 fig1/table1,且默认含图注)
 python3 scripts/locate_figs.py paper.pdf crops.json
 
 # 3. 按 crops.json 渲染 300 DPI PNG
 python3 scripts/extract_figs.py paper.pdf crops.json figs/
 
-# 4. 以 assets/template.html 为骨架填写讲解(样式、图文配合结构已内置)
+# 4. 几何审计:页号一致 / 像素一致 / 图注包含性 / 边框渗墨 / 覆盖合理性
+python3 scripts/verify_crops.py paper.pdf crops.json
+
+# 5. 以 assets/template.html 为骨架填写讲解(样式、图文配合结构已内置)
 #    <img src="figs/fig1.png"> 挂在对应讲解段落里
 
-# 5. 校验
-python3 scripts/validate.py 你的页面.html
+# 6. 校验(两层都要过)
+python3 scripts/validate.py 你的页面.html          # 源码层
+python3 scripts/render_assert.py 你的页面.html     # 渲染层(需 playwright + chromium)
 ```
 
-`locate_figs.py` 输出的框是"页级"候选,多图同页时按打印的边界把 `crops.json` 里的 rect 拆细(坐标单位:PDF 点,原点在页左上)。
+`locate_figs.py` 会打印每条裁剪的警告(`cap-outside` / `edge-ink` / `no-body` / `wide-span`),
+有警告就按提示修 rect;`verify_crops.py` 会把"尺寸正常但内容错了"的框判 FAIL。
 
 ## 脚本与模板
 
 | 文件 | 作用 |
 |---|---|
-| `scripts/locate_figs.py` | 自动检测光栅图/矢量图/图注,生成 `crops.json` |
+| `scripts/locate_figs.py` | 定位 Figure/Table → `crops.json`(图注锚定、双栏感知、排除页眉页脚、真实编号) |
 | `scripts/extract_figs.py` | `crops.json` → 300 DPI PNG(固定 300,不缩放) |
-| `scripts/validate.py` | 校验:图片存在 + 响应式、Figure/Table 数量与表号、锚点、标签平衡;exit 0=PASS(推荐项缺项以 WARN 提示) |
+| `scripts/verify_crops.py` | 几何审计:`crops.json` ↔ PDF ↔ `figs/`(页号/像素/图注包含/边框渗墨/覆盖) |
+| `scripts/validate.py` | 源码层校验:图片存在 + 响应式、图表编号 1..N、锚点、标签平衡、空表格壳、**`$..$` 与美元金额冲突**;exit 0=PASS、1=FAIL(推荐项缺项以 WARN 提示) |
+| `scripts/render_assert.py` | 渲染层断言:Chromium 加载后核对**金额字面存活**、KaTeX 节点数与错误、破图、横向溢出、console/pageerror;exit 0/1/2 |
+| `scripts/check_collection.py` | 合集一致性:门户卡片序号唯一且 DOM 单调、README↔卡片、图数/表数从磁盘重算 |
 | `scripts/add_pagerefs.py` | 从 `crops.json` 给每张图注注入原文页码 `span.pgref`(幂等,自动补 CSS) |
 | `scripts/vendor_check.py` | 校验 `vendor/lieflat-charts/` 副本完整、许可证随副本分发(CI 也跑) |
+
+> **为什么需要渲染层校验**:KaTeX 用 `{left:'$',right:'$'}` 作内联分隔符时,正文里的
+> 美元金额(`$0.583`、`$7.23`…)会被成对当公式,中间整段文字被排成斜体乱码——
+> **源码完全合法、`validate.py` 全 PASS、页面已经坏了**。报了成本数字的论文必然踩这个坑,
+> 所以模板里留了维护者注释,`validate.py`(静态)与 `render_assert.py`(渲染)两头堵。
 | `assets/template.html` | 图文配合页面样式骨架(hero/目录/章节/图注/表格样式) |
 | `assets/chart-figure.html` | **本页自绘图表的插入片段**(`data-selfchart` + 「本页自绘」标注,复制即用) |
 | `references/lieflat-charts.md` | **本页自绘图表的完整规程**:何时画 + 交付契约 + 用法 + 许可说明 |

@@ -29,13 +29,17 @@ description: >-
 ## 流程总览
 
 1. 获取论文(下载 PDF + 全文)
-2. 通读并定位所有 Figure/Table(编号、所在页、区域)
-3. 高 DPI 提取图表(核心:验证裁剪框 → 渲染 → 复核)
+2. 通读并定位所有 Figure/Table(编号、所在页、区域)——`locate_figs.py`(图注锚定 + 双栏感知)
+3. 高 DPI 提取图表(核心:渲染 → **`verify_crops.py` 几何审计**,不要肉眼核)
 4. 按"图文配合"结构撰写 HTML(模板在 `assets/template.html`)
-5. 校验(结构/锚点/图片/表格完整性)
+5. 校验,**两层都要过**:5a 源码层 `validate.py` + 5b 渲染层 `render_assert.py`
 5.5 可选:论文给不出的关键视图,用 lieflat-charts 体系自绘并合规嵌入(见第 5.5 步)
-6. 可选:git 推送 + GitHub Pages 部署
-7. 可选:中英双语版(en.html + 语言切换器,见第 7 步)
+6. 可选:git 推送 + GitHub Pages 部署(单篇项目页 / 并入合集仓库两种形态,见第 6 步)
+7. 可选:中英双语版(en.html + 语言切换器;先落英文骨架再写中文页,见第 7 步)
+
+> 两条最容易静默犯的错,已各配一个检查:
+> ① **`$..$` 内联公式与美元金额冲突** → 源码合法、页面乱码(5b `render_assert.py`);
+> ② **合集里序号重复/统计过期** → 门户与 README/磁盘不一致(第 6b 步 `check_collection.py`)。
 
 ## 第 1 步:获取论文
 
@@ -52,17 +56,32 @@ file paper.pdf   # 期望: PDF document
 
 ## 第 2 步:定位图表
 
-用 `scripts/locate_figs.py` 程序化定位(不要靠肉眼猜),它输出每页的图注位置、光栅图框、矢量图带,并自动生成页级候选 `crops.json`:
+用 `scripts/locate_figs.py` 程序化定位(不要靠肉眼猜):
 
 ```bash
 python3 "$SKILL_DIR/scripts/locate_figs.py" paper.pdf crops.json
+# 可选:--no-caption 只裁主体 / --margin 页边距 / --gap 空白阈值
 ```
 
-若同页有多个图,按脚本打印的边界把 rect 拆细。每张图坐标确定后,**人工复核一遍**(内容与图注是否对齐、是否混入正文)。该冒烟路径由 CI 用 `assets/example_paper.pdf` 持续验证。
+它直接输出**带真实编号**的 `crops.json`(`fig1`/`table2`/`algo1`…),不是页级候选:
 
-裁得"对齐"的 rect 推荐程序化求法,不要手推文本块边界:以"上下邻近元素(图注/正文)的 span 边界"围出安全窗口,
-在窗口内渲染该页并扫描非白像素(<248 灰度)得到精确**墨迹包围盒**,四边加统一留白(约 5pt;受图注距离限制时
-取空隙中点)。这样不会贴边、不会削掉表格线,也不会留下左右不对称的大片空白。
+- **图注锚定**:只认文本块**开头**匹配 `Figure|Table|Algorithm <n>:` 的块;正文里对图的引用
+  ("Figure 2 shows that…")不算。这是旧版 `search_for("Figure")` 错位的主因。
+- **双栏感知**:按文本行的 x 方向空白切栏;图注只在自己所在栏内找主体;只有图注本身宽度超过
+  文本宽 65%(通栏大图)时才允许跨栏。**双栏论文不再被裁成横跨整页的矩形。**
+- **排除页眉页脚**:默认上下各 45pt 不参与检测(`--margin` 可调),运行页眉不会被裁进图里。
+- **墨水带聚合**:在 150 DPI 墨水行剖面上从图注向外走,跨过正常行距、遇大段空白即止——
+  光栅图、矢量图、带线表格都能一致处理。
+- **图注默认裁进矩形**(页面另有 `<figcaption>` 承载解读);`--no-caption` 改为只裁主体。
+
+每条会打印 `cap-outside`(框没包住图注)/ `edge-ink`(贴边,可能切内容)/ `no-body`(图注旁没找到主体)/
+`wide-span`(跨栏)诊断——**有诊断就回去修 rect**,诊断本身不改退出码。
+
+裁得"对齐"的 rect 若需手工兜底:以"上下邻近元素(图注/正文)的 span 边界"围出安全窗口,
+在窗口内渲染该页并扫描非白像素(<248 灰度)得到精确**墨迹包围盒**,四边加统一留白(约 5pt;
+受图注距离限制时取空隙中点)。这样不会贴边、不会削掉表格线,也不会留下左右不对称的大片空白。
+
+该冒烟路径由 CI 用 `assets/example_paper.pdf` 持续验证;提取后的几何审计见第 3 步。
 
 ## 第 3 步:高 DPI 提取(核心)
 
@@ -73,16 +92,31 @@ python3 "$SKILL_DIR/scripts/extract_figs.py" paper.pdf crops.json out/
 - `crops.json` 格式:`{"fig1": {"page": 2, "rect": [x0,y0,x1,y1]}, ...}`(rect 为 PDF 点坐标;**page 是 0 基索引**,
   脚本直接 `doc[page]`,不是"第几页";日志里 `PDF p.N` 才是 1 基显示)
 - ⚠️ **页码 off-by-one 是隐形炸弹**:把"第 N 页"直接写进 page,会静默截取第 N+1 页的同一坐标——
-  PNG 尺寸照样正确(尺寸只由 rect 决定),但内容全错;尺寸核对发现不了,必须靠下面的像素对照。
+  PNG 尺寸照样正确(尺寸只由 rect 决定),但内容全错;尺寸核对发现不了,必须靠下面的几何审计。
 - 脚本用 `page.get_pixmap(dpi=300, clip=rect)` 渲染,输出 `out/fig1.png`…
 - **DPI 固定 300**;对宽幅图(如多面板并排)可给更宽的 rect,但绝不缩放 render。
-- 提取后必须**三重复核**:
-  1. **像素对照(防错页)**:用 fitz 直渲染 `doc[page]` 的同一 rect,与输出 PNG 逐像素/哈希一致;
-     再渲染 `doc[page+1]` 同一 rect,确认与前者**不同**;
-  2. **文本块核对(防框大/框小)**:列出框内全部文本块,确认只含本图内容
-     (有正文句子混入 = 框大了;缺面板标签 = 框小了);
-  3. **边框全白检查(防贴边/削墨)**:PNG 四边 1px 内不得有墨迹(灰度 <248)——
-     贴边说明 rect 紧贴内容,按第 2 步的墨迹包围盒法重裁。
+- 提取后跑**几何审计**(不要靠肉眼,也不要手写检查脚本):
+
+```bash
+python3 "$SKILL_DIR/scripts/verify_crops.py" paper.pdf crops.json     # 默认读 ./figs/
+```
+
+  它逐条核查 `crops.json` 的每个条目,抓的都是"尺寸看起来正常但内容错了"的那类失败:
+
+  1. **页号一致性**:图注重现的页面必须等于 `page` 字段(用全篇图注索引反查;即使没有 PNG 也能抓 off-by-one);
+     同时渲染同 rect 到相邻页,结果必须不同。
+  2. **像素一致**:`figs/<key>.png` 必须与 `page[rect]` 在 300 DPI 下重渲的结果逐像素相同(抓 stale / 手改过的 PNG)。
+  3. **图注包含性**:框与图注**相交但没包全** → FAIL(这就是"`Figure 3:` 被切成 `ure 3:`"的真 bug);
+     完全不含图注 → 合法(页面 `<figcaption>` 另有图注),只记 `caption-excluded`。若确定裁剪就不含图注,可加 `--no-caption`。
+  4. **边框渗墨**:外圈 1px 有墨时,连续成线判为**表格线**(正常),零散渗墨 WARN「内容可能被切」。
+  5. **覆盖合理性**:重复 rect、越出页面、侵入页眉页脚留白(y<45pt)都会被点名。
+  6. **crops ↔ figs 一致性**:有 key 无 PNG、或有 PNG 无 key。
+
+  只有 WARN 时仍 PASS;`FAIL` 必须修 rect 或重跑 `extract_figs.py`。它同时打印每个条目的
+  页码、rect、墨迹占比与框内文本前 52 字,便于人工快速确认"框里确实是这张图"。
+
+- 若没有工具链(例如别的环境),退回手工三重复核:①同 rect 重渲并与 PNG 逐像素比对、再确认 `page+1` 不同;
+  ②列出框内文本块,正文混入=框大、缺面板标签=框小;③四边 1px 无墨(表格线除外)。
 
 图表数量核对:Figure 与 Table 必须与论文实际一致(正文 + 附录)。表格数表格数量必须在 HTML 里
 与论文完全对齐(编号 1..N 不重不漏),图片同理。
@@ -170,6 +204,11 @@ python3 "$SKILL_DIR/scripts/add_pagerefs.py" en.html crops.json --label "Report 
 
 ## 第 5 步:校验
 
+校验分两层,**两层都必须过**。只跑第一层是不够的:源码完全合法、`validate.py` 全绿、
+页面却已经坏掉的失败是真实存在的(见下方"渲染级断言")。
+
+### 5a. 源码层(结构)
+
 **在 HTML 所在目录运行**(相对路径 `figs/` 才能解析):
 
 ```bash
@@ -186,10 +225,44 @@ python3 "$SKILL_DIR/scripts/validate.py" res.html
 (`class="lang-toggle"` 的链接),其 `href` 指向的本地文件必须真实存在;⑩ `span.pgref` 要么每张
 图注都有、要么一张都没有(只标一部分判 FAIL)。⑪ **自绘图合规**——带 `data-selfchart` 的 figure
 必须在图注里标「本页自绘 / Self-drawn」,且**不得**使用 `Figure N:` / `Table N:` 编号(见第 5.5 步)。
+⑫ **`$..$` 与美元金额冲突**(见下)。
 全部 PASS 才可交付。
 
+输出里 `exhibits=` 指论文图表张数(按 `<b>Figure N:</b>` / `<b>Table N:</b>` 统计),
+`data-tables=` 指页面内真实 HTML 数据表(术语表等)。表格以「原图 + figcaption」呈现时
+`data-tables` 为 0 是**正常的**,不要误读成"没有表格"。
+
 推荐项缺失不判 FAIL,以 `WARN (recommended)` 提示:读数约定 / 行内引用 / 原文页码 / 待补测清单 /
-没有来源标注的 figure(既无 `Figure N:` 也无「本页自绘」标记)。
+没有来源标注的 figure(既无 `Figure N:` 也无「本页自绘」标记) / `crops.json` 覆盖不全。
+
+### 5b. 渲染层(浏览器实测)
+
+```bash
+python3 "$SKILL_DIR/scripts/render_assert.py" res.html          # 依赖 playwright + chromium
+```
+
+`validate.py` 全部是**源码级正则**,对"渲染后才暴露"的错误天然无感。最典型的一类是
+**KaTeX 单美元内联分隔符吞掉美元金额**:页面正文报 `$0.583`、`$7.23` 这类成本,而 KaTeX 把成对的
+`$` 当公式定界符,中间整段中英文被排成斜体乱码——**源码完全合法、`validate.py` 全 PASS、页面已经坏了**。
+凡论文正文出现成本/价格数字,内联数学一律写 `\(...\)`,`delimiters` 里删掉 `{left:'$',right:'$'}`。
+
+`render_assert.py` 在 Chromium 里加载页面并断言读者真正看到的东西:
+图表可解码 / **每个美元金额仍以字面出现** / KaTeX 节点数等于源码数学处数且无 `.katex-error` /
+无 `\(` `\)` 残留 / 无横向溢出 / 无 console 与 pageerror。
+
+- 退出码:`0` PASS、`1` FAIL、`2` 环境问题(未装 Playwright/Chromium、KaTeX CDN 不可达等)。
+  `2` **不等于**通过,但也不是页面缺陷,按提示修环境后重跑。
+- 相对路径按 **HTML 自身所在目录**解析(`file://` 的浏览器语义),所以在哪个目录调用都不影响结果。
+- 离线机器:页面若 vendored 了 `assets/katex/`,先把 CDN 换成本地引用,否则会以 `2` 退出。
+
+### 5c. 双语页成对校验(有 en.html 时)
+
+```bash
+python3 "$SKILL_DIR/scripts/validate.py" index.html en.html     # 一次校验多页,逐页 PASS/FAIL
+python3 "$SKILL_DIR/scripts/render_assert.py" index.html en.html
+```
+
+两页的 `validate.py` 与 `render_assert.py` 都要 PASS 才能上线。
 
 ## 第 5.5 步(可选):本页自绘图表(对接 lieflat-charts)
 
@@ -225,8 +298,11 @@ python3 "$SKILL_DIR/scripts/validate.py" res.html
 
 ## 第 6 步(可选):推送与 GitHub Pages 部署
 
-skill 目录本身可推送到远程仓库;精读页推独立的 `<PaperName>-Project-Page` 仓库并开 Pages(模仿
-`https://<user>.github.io/<PaperName>-Project-Page/` 的项目页形态):
+有两种形态,**先问清楚要哪一种**(它们不是二选一,合集里也常有独立项目页)。
+
+### 6a. 单篇项目页 `<PaperName>-Project-Page`
+
+精读页推独立仓库并开 Pages(模仿 `https://<user>.github.io/<PaperName>-Project-Page/` 形态):
 
 ```bash
 gh repo create <PaperName>-Project-Page --public --source=. --push
@@ -234,7 +310,53 @@ gh api -X POST repos/<user>/<PaperName>-Project-Page/pages \
   -f "source[branch]=main" -f "source[path]=/"
 ```
 
-交付时:报告 HTML 路径、figs/ 目录、仓库链接、Pages URL。
+### 6b. 并入已有的**合集仓库**(monorepo)
+
+若用户已有 `Paper-Reading-Collection` 这类合集,一篇论文不是"一个仓库",而是合集里的一个目录。
+**每篇固定 5 个文件**(这套约定没有写进工具,靠这里约束):
+
+```
+<root>/
+├── index.html                 ← 门户页:分类 section + 每篇一个 <div class="pcard"> 卡片
+├── README.md                  ← 总索引:论文总览表 + 机制对照矩阵 + 统计数字
+├── verify_live.py             ← 线上验收(逐页 GET + 全量图片回访,要求 failures=0)
+├── <category>/README.md       ← 分类索引表
+└── <category>/<paper-slug>/   ← 一篇论文
+    ├── index.html             ← 中文精读页(直接是页面,不是重定向 stub)
+    ├── en.html                ← 英文版
+    ├── figs/                  ← 300 DPI 图表(中英共用,绝不重复提取)
+    ├── crops.json             ← 供 add_pagerefs / verify_crops 使用
+    └── README.md              ← 本篇摘要(中文精读页/英文版/图片/分类/在线阅读链接)
+```
+
+并入时**必须同步四处**,少一处就会出现"门户看不到""README 多一篇"这类不一致:
+
+1. 新建 `<category>/<paper-slug>/` 并放入上述 5 个文件;
+2. 门户 `index.html` 加一张 `<div class="pcard">`(中英双 span;**标题开头的带圈序号全站唯一**,
+   且**按 DOM 顺序递增**——序号必须与它在矩阵/总览表里的次序一致);
+3. 分类 `<category>/README.md` 表格加一行;
+4. 总 `README.md` 的论文总览表加一行,并**重算 hero 统计**(论文数 / 图表数),不要手写估计值。
+
+**改完先自检再推**:
+
+```bash
+python3 "$SKILL_DIR/scripts/check_collection.py" .        # 序号唯一且 DOM 单调、README↔卡片、统计从磁盘重算
+python3 verify_live.py                                    # 推送并等 Pages 构建完成后跑,要求 failures=0
+gh api repos/<user>/<repo>/pages/builds/latest --jq '.status'   # 期望 "built"
+```
+
+> 合集维护的真实坑(都发生过):⑦/⑧ 被两篇同时占用、某篇标 ⑪ 实际排第 13、hero 写「11 篇/81 图/102 表」
+> 而磁盘是「14 篇/110 图/103 表」。这些靠人眼看不出,必须跑 `check_collection.py`。
+
+### 6c. 推送与验收
+
+```bash
+git add -A && git commit -m "<论文名>: 精读页 + 英文版" && git push
+```
+
+推送后先等 Pages 构建完成再验收;早测 404 多半只是传播延迟。
+
+交付时:报告 HTML 本地路径、`figs/`、仓库链接、Pages URL(中/EN 两个)。
 
 ## 第 7 步(可选):中英双语版(中文精读 + English edition)
 
@@ -247,6 +369,12 @@ gh api -X POST repos/<user>/<PaperName>-Project-Page/pages \
 
 ### en.html 的约定
 
+> **产出顺序(避免"语言切换器死锁")**:中文页顶栏有 `<a class="lang-toggle" href="en.html">`,
+> 而 `validate.py` 要求该文件真实存在;若英文版又排队等中文页定稿,两边会互相卡住。
+> **做法:先落一个 `en.html` 骨架**(哪怕只有 `<html lang="en">` + 读者体验层,或一行占位),
+> 中文页立刻可校验;然后再把英文内容补齐,最后两页一起过 5a + 5b。分阶段验收时也可用
+> `validate.py index.html en.html` 成对校验,一次看到两页状态。
+
 - `<html lang="en">`;读者体验层(深色模式/顶栏/lightbox/KaTeX/术语表 `id="s9"`/abbr 悬停)
   与中文页完全一致,校验器同样强制检查。
 - 图注结构对应中文页的 `.zh` 解读行,改用 `<span class="ex">` 承载英文解读(CSS 样式照抄 `.zh`):
@@ -257,6 +385,10 @@ gh api -X POST repos/<user>/<PaperName>-Project-Page/pages \
   <span class="ex">If the step-relative threshold were used everywhere, ...</span>
 </figcaption>
 ```
+
+- **英文页同样适用第 5b 步的美元金额规则**:英文版几乎必然出现 `$0.583` 这类金额,而
+  `validate.py` 的源码检测与 `render_assert.py` 的渲染断言都要过——最简单可靠的做法就是
+  内联数学写 `\(...\)`、删掉 `$..$` 分隔符(中英两页口径保持一致,不要一边删配置一边靠正文转义)。
 
 - **速读版里的真实 HTML 数据表,`<caption>` 禁止以 "Table N:" 开头**:校验器要求
   `<caption>Table N` 编号 1..N 连续完整,速读版只收录论文表格的子集,必然断号判 FAIL。
@@ -402,9 +534,13 @@ paper-reading-html/
 │   ├── README.md           ← 第三方目录说明与许可后果(本仓库整体转为非商业可用)
 │   └── lieflat-charts/     ← 图表法典副本(66 文件/1.4MB;PolyForm Noncommercial,附 LICENSE)
 ├── scripts/
-│   ├── locate_figs.py      ← 自动检测图表位置 → crops.json
+│   ├── locate_figs.py      ← 定位图表 → crops.json(图注锚定/双栏感知/真实编号)
 │   ├── extract_figs.py     ← crops.json → 300DPI PNG
+│   ├── verify_crops.py     ← 几何审计:页号一致/像素一致/图注包含/边框渗墨/覆盖
 │   ├── add_pagerefs.py     ← crops.json → 图注原文页码(span.pgref)
-│   └── validate.py         ← HTML 完整性校验
-└── .github/workflows/validate.yml  ← CI:语法 + locate 冒烟 + 模板完整性
+│   ├── validate.py         ← 源码层校验(结构/编号/锚点/空壳/$..$ 冲突)
+│   ├── render_assert.py    ← 渲染层断言(Chromium:金额存活/KaTeX/破图/溢出/报错)
+│   ├── check_collection.py ← 合集一致性(卡片序号/README↔卡片/统计从磁盘重算)
+│   └── vendor_check.py     ← 第三方图表法典副本完整性 + 许可
+└── .github/workflows/validate.yml  ← CI:语法 + 定位冒烟 + 模板 + 校验器回归 + 渲染断言
 ```
