@@ -196,6 +196,45 @@ def validate_one(path, siblings=()):
     if n_fig != n_cap:
         problems.append(f"figures={n_fig} but figcaptions={n_cap}")
 
+    # 2b. orphan zoom-hint: the "click any image" hint promises an interactive figure
+    # in its own section. A section that carries the hint but no <figure> is what a
+    # real page shipped with — the prose walked through Figure 1 in detail, the hint
+    # was there, and the figure itself had drifted into a later section, so readers
+    # were told to click an image that was not on the page. Precise rule, no false
+    # positives: every legitimate page puts the hint next to a figure.
+    for m in re.finditer(r'<section[^>]*\bid="([^"]+)"[^>]*>(.*?)</section>', src, re.S):
+        sec_id, sec = m.group(1), m.group(2)
+        if "zoom-hint" in sec and '<figure class="fig"' not in sec:
+            problems.append(
+                f"section #{sec_id} carries a zoom-hint but contains no <figure> — the hint "
+                f"tells readers to click an image that is not in this section; move that "
+                f"section's figure back here or move the hint next to the figure")
+
+    # 2c. near-duplicate adjacent paragraphs: a long "read Figure N" paragraph plus a
+    # rewritten shorter copy of it is a classic editing leftover — the page then states
+    # the same thing twice in a row. Threshold 0.60 on len>=40 paragraphs flagged
+    # exactly the two real instances (zh + en of the same page) across the collection.
+    paras = re.findall(r"<p(?:\s[^>]*)?>(.*?)</p>", re.sub(r"<script\b.*?</script>", " ", src, flags=re.S), re.S)
+    def _plain(t):
+        t = re.sub(r"<[^>]+>", "", t)
+        t = re.sub(r"&[a-zA-Z#0-9]+;", " ", t)
+        return re.sub(r"\s+", "", t)
+    prev_txt, prev_i = None, 0
+    for i, para in enumerate(paras):
+        cur = _plain(para)
+        if len(cur) < 40:
+            prev_txt = None
+            continue
+        if prev_txt is not None:
+            import difflib as _dl
+            ratio = _dl.SequenceMatcher(None, prev_txt, cur).ratio()
+            if ratio >= 0.60:
+                warns.append(
+                    f"paragraphs #{prev_i} and #{i} are {ratio:.0%} identical "
+                    f"({len(prev_txt)}/{len(cur)} chars) — likely an editing leftover that "
+                    f"states the same thing twice; keep one")
+        prev_txt, prev_i = cur, i
+
     # 3. data tables (real <table> with a "Table N" caption) numbered 1..N complete
     caps = sorted(int(m.group(1)) for m in re.finditer(r"<caption>Table\s*(\d+)", src))
     if caps != list(range(1, len(caps) + 1)):
